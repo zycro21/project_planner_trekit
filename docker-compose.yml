@@ -4,10 +4,12 @@ services:
     image: postgres
     container_name: trekit-travel-planner-db
     restart: always
+    env_file: 
+      - .env
     environment:
-      POSTGRES_USER: kudo21
-      POSTGRES_PASSWORD: dimas21032004
-      POSTGRES_DB: trekit_travel_planner
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5432:5432"
     volumes:
