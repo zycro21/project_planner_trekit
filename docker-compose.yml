@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  db:
+    image: postgres
+    container_name: trekit-travel-planner-db
+    restart: always
+    environment:
+      POSTGRES_USER: kudo21
+      POSTGRES_PASSWORD: dimas21032004
+      POSTGRES_DB: trekit_travel_planner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
