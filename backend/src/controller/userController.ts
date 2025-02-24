@@ -33,7 +33,7 @@ const getUserById = async (req: Request, res: Response) => {
   try {
     // Jika role bukan admin dan user_id yang diminta bukan miliknya sendiri, tolak akses
     if (
-      requestingUser?.role !== "admin" &&
+      requestingUser?.role !== "ADMIN" &&
       requestingUser?.user_id !== user_id
     ) {
       res
@@ -127,6 +127,8 @@ const registerUser = async (req: Request, res: Response) => {
       is_verified: false,
       verification_token: verificationToken,
       verification_expires: verificationExpires,
+      reset_password_token: null, // Tambahkan nilai default null
+      reset_password_expires: null, // Tambahkan nilai default null
     });
 
     // Kirim email verifikasi
@@ -206,11 +208,23 @@ const loginUser = async (req: Request, res: Response) => {
     return;
   }
 
+  // Cek apakah password ada
+  if (!password || typeof password !== "string") {
+    res.status(400).json({ message: "Password tidak valid" });
+    return;
+  }
+
   try {
     // Cek apakah user ada di database
     const user = await UserModel.findByEmail(email);
     if (!user) {
       res.status(401).json({ message: "Email atau password salah" });
+      return;
+    }
+
+    // Pastikan password_hash ada
+    if (!user.password_hash) {
+      res.status(401).json({ message: "Password tidak ditemukan" });
       return;
     }
 
@@ -266,7 +280,7 @@ const updateUser = async (req: Request, res: Response) => {
 
   try {
     // Check if user will be update on database
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { user_id },
     });
 
@@ -294,7 +308,7 @@ const updateUser = async (req: Request, res: Response) => {
     }> = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email;
-    if (role && requestUser.role === "admin") updateData.role = role; // only admin can change role
+    if (role && requestUser.role === "ADMIN") updateData.role = role; // only admin can change role
 
     const updatedUser = await UserModel.update(user_id, updateData);
 
@@ -325,7 +339,7 @@ const deleteUser = async (req: Request, res: Response) => {
     }
 
     // Pastikan hanya ADMIN yang bisa menghapus user
-    if (requestUser?.role !== "admin") {
+    if (requestUser?.role !== "ADMIN") {
       res.status(403).json({ message: "Anda Tidak Diizinkan Menghapus User" });
       return;
     }
@@ -360,10 +374,27 @@ const updatePassword = async (req: Request, res: Response) => {
   }
 
   try {
-    // Cari user berdasarkan ID dari token (hanya dirinya sendiri)
-    const user = await UserModel.findById(requestingUser.user_id);
+    // Cari user berdasarkan ID dari token (hanya dirinya sendiri) dan ambil password_hash
+    const user = await prisma.users.findUnique({
+      where: { user_id: requestingUser.user_id },
+      select: {
+        user_id: true,
+        name: true,
+        email: true,
+        role: true,
+        created_at: true,
+        password_hash: true, // Ambil password_hash di sini
+      },
+    });
+
     if (!user) {
       res.status(404).json({ message: "User tidak ditemukan" });
+      return;
+    }
+
+    // Pastikan password_hash ada
+    if (!user.password_hash) {
+      res.status(400).json({ message: "Password tidak ditemukan" });
       return;
     }
 

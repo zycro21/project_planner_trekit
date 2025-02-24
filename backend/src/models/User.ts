@@ -5,20 +5,39 @@ const prisma = new PrismaClient();
 
 export interface User {
   user_id: string;
-  name: string;
+  name: string | null;
   email: string;
+  password_hash?: string; // Menjadikan opsional
+  role: "USER" | "ADMIN";
+  is_verified?: boolean; // Menjadikan opsional
+  verification_token: string | null; // Ubah menjadi string | null
+  verification_expires?: Date | null; // Ubah menjadi Date | null
+  reset_password_token: string | null; // Ubah menjadi string | null
+  reset_password_expires: Date | null; // Ubah menjadi Date | null
+  created_at?: Date | null;
+}
+
+interface UserCreateInput {
+  user_id: string;
+  email: string;
+  name: string | null;
   password_hash: string;
   role: "USER" | "ADMIN";
-  is_verified: boolean;
-  verification_token?: string;
-  verification_expires?: Date;
-  created_at?: Date;
+  is_verified?: boolean;
+  verification_token?: string | null;
+  verification_expires?: Date | null;
+  reset_password_token?: string | null;
+  reset_password_expires?: Date | null;
 }
+
+export type Role = "USER" | "ADMIN";
 
 export class UserModel {
   // Ambil semua user
-  static async findAll(): Promise<User[]> {
-    return await prisma.user.findMany({
+  static async findAll(): Promise<
+    Pick<User, "user_id" | "name" | "email" | "role" | "created_at">[]
+  > {
+    return await prisma.users.findMany({
       select: {
         user_id: true,
         name: true,
@@ -30,15 +49,20 @@ export class UserModel {
   }
 
   // Hitung jumlah user berdasarkan role
-  static async countByRole(role: string): Promise<number> {
-    return await prisma.user.count({
+  static async countByRole(role: Role): Promise<number> {
+    return await prisma.users.count({
       where: { role },
     });
   }
 
   // Cari user berdasarkan ID
-  static async findById(user_id: string): Promise<User | null> {
-    return await prisma.user.findUnique({
+  static async findById(
+    user_id: string
+  ): Promise<Pick<
+    User,
+    "user_id" | "name" | "email" | "role" | "created_at"
+  > | null> {
+    return await prisma.users.findUnique({
       where: { user_id },
       select: {
         user_id: true,
@@ -52,20 +76,29 @@ export class UserModel {
 
   // Cari user berdasarkan email
   static async findByEmail(email: string): Promise<User | null> {
-    return await prisma.user.findUnique({
+    return await prisma.users.findUnique({
       where: { email },
     });
   }
 
   // Buat user baru
-  static async create(user: User): Promise<User> {
-    return await prisma.user.create({
+  static async create(user: UserCreateInput): Promise<User> {
+    // Pastikan password_hash didefinisikan
+    if (!user.password_hash) {
+      throw new Error("Password hash harus disediakan");
+    }
+
+    return await prisma.users.create({
       data: {
         user_id: user.user_id,
-        name: user.name,
         email: user.email,
+        name: user.name,
         password_hash: user.password_hash,
         role: user.role,
+        verification_token: user.verification_token || null, // Opsional
+        verification_expires: user.verification_expires || null, // Opsional
+        reset_password_token: user.reset_password_token || null, // Opsional
+        reset_password_expires: user.reset_password_expires || null, // Opsional
       },
       select: {
         user_id: true,
@@ -73,6 +106,9 @@ export class UserModel {
         email: true,
         role: true,
         created_at: true,
+        verification_token: true, // Pastikan properti ini ada
+        reset_password_token: true, // Pastikan properti ini ada
+        reset_password_expires: true, // Pastikan properti ini ada
       },
     });
   }
@@ -82,7 +118,7 @@ export class UserModel {
     user_id: string,
     data: Partial<{ name: string; email: string; role: "USER" | "ADMIN" }>
   ) {
-    return await prisma.user.update({
+    return await prisma.users.update({
       where: { user_id },
       data,
       select: {
@@ -97,7 +133,7 @@ export class UserModel {
 
   // Hapus user
   static async delete(user_id: string): Promise<void> {
-    await prisma.user.delete({
+    await prisma.users.delete({
       where: { user_id },
     });
   }
@@ -110,7 +146,7 @@ export class UserModel {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await prisma.user.update({
+    await prisma.users.update({
       where: { user_id },
       data: { password_hash: hashedPassword },
     });
@@ -118,7 +154,7 @@ export class UserModel {
 
   // Simpan token reset password di database
   static async saveResetToken(user_id: string, resetToken: string) {
-    await prisma.user.update({
+    await prisma.users.update({
       where: { user_id },
       data: {
         reset_password_token: resetToken,
@@ -129,7 +165,7 @@ export class UserModel {
 
   // Cari user berdasarkan token reset password
   static async findByResetToken(token: string) {
-    return await prisma.user.findFirst({
+    return await prisma.users.findFirst({
       where: {
         reset_password_token: token,
         reset_password_expires: { gt: new Date() },
@@ -142,7 +178,7 @@ export class UserModel {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await prisma.user.update({
+    await prisma.users.update({
       where: { user_id },
       data: {
         password_hash: hashedPassword,
@@ -154,7 +190,7 @@ export class UserModel {
 
   // Simpan Token Verifikasi Email
   static async saveVerificationToken(user_id: string, token: string) {
-    await prisma.user.update({
+    await prisma.users.update({
       where: { user_id },
       data: {
         verification_token: token,
@@ -165,7 +201,7 @@ export class UserModel {
 
   // Cari user berdasarkan token verifikasi email
   static async findByVerificationToken(token: string) {
-    return await prisma.user.findFirst({
+    return await prisma.users.findFirst({
       where: {
         verification_token: token,
         verification_expires: { gt: new Date() },
@@ -175,7 +211,7 @@ export class UserModel {
 
   // Verifikasi email user
   static async verifyUserEmail(user_id: string) {
-    await prisma.user.update({
+    await prisma.users.update({
       where: { user_id },
       data: {
         is_verified: true,
