@@ -1,19 +1,36 @@
-version: '3.8'
+version: "3.8"
+
 services:
-  db:
-    image: postgres
-    container_name: trekit-travel-planner-db
-    restart: always
-    env_file: 
-      - .env
+  backend:
+    image: node:18  # Gunakan versi Node.js yang sesuai
+    working_dir: /app
+    volumes:
+      - ./backend:/app  # Sinkronisasi folder backend lokal ke dalam container
+      - /app/node_modules  # Hindari masalah node_modules di container
+    ports:
+      - "5000:5000"
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      - NODE_ENV=development
+    depends_on:
+      - db
+    command: sh -c "npm install && npm run dev"  # Jalankan development server
+
+  db:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: kudo21
+      POSTGRES_PASSWORD: dimas123456
+      POSTGRES_DB: trekit_travel_planner
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+networks:
+  app_network:
 
 volumes:
   postgres_data:

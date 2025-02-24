@@ -1,6 +1,7 @@
 import express, { Express, Request, Response } from "express";
 import cookieParser from "cookie-parser";
 import cors from "./config/corsConfig";
+import userRoutes from "./routes/userRoutes";
 
 const App: Express = express();
 
@@ -15,5 +16,7 @@ App.use(express.urlencoded({ extended: true}));
 App.get('/', (req: Request, res: Response) => {
     res.send('Welcome to this API!');
 });
+
+App.use("/api/users", userRoutes);
 
 export default App;

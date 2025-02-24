@@ -1,26 +1,18 @@
-import dotenv from 'dotenv';
-import { Pool } from 'pg';
+import dotenv from "dotenv";
+import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
 
-const pool = new Pool({
-    user: process.env.DB_USER as string,
-    host: process.env.DB_HOST as string,
-    database: process.env.DB_NAME as string,
-    password: process.env.DB_PASSWORD as string,
-    port: Number(process.env.DB_PORT) || 5432,
-});
+const prisma = new PrismaClient();
 
-const connectDB = async (): Promise<void> => {
+const connectDB = async () => {
     try {
-        const client =  await pool.connect();
-        console.log('Database Connected! ✅');
-        client.release();
+        await prisma.$connect();
+        console.log("✅ Database Connected!");
     } catch (error) {
-        console.error('Database Connection Error:', error);
+        console.error("❌ Database Connection Error:", error);
+        process.exit(1);
     }
 };
 
-connectDB();
-
-export default pool;
+export { prisma, connectDB };
