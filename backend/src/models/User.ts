@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-export interface User {
+export interface Users {
   user_id: string;
   name: string | null;
   email: string;
@@ -46,13 +46,13 @@ export class UserModel {
     search?: string;
     email?: string;
   }): Promise<
-    Pick<User, "user_id" | "name" | "email" | "role" | "created_at">[]
+    Pick<Users, "user_id" | "name" | "email" | "role" | "created_at">[]
   > {
-    return await prisma.users.findMany({
+    return await prisma.user.findMany({
       where: {
-        ...(role ? { role: role as Role } : {}), // Filter berdasarkan role
-        ...(search ? { name: { contains: search, mode: "insensitive" } } : {}), // Search nama
-        ...(email ? { email: { contains: email, mode: "insensitive" } } : {}), // Search email
+        ...(role ? { role: role as Role } : {}),
+        ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+        ...(email ? { email: { contains: email, mode: "insensitive" } } : {}), 
       },
       orderBy: {
         user_id: sort === "DESC" ? "desc" : "asc", // Sorting berdasarkan user_id
@@ -69,7 +69,7 @@ export class UserModel {
 
   // Hitung jumlah user berdasarkan role
   static async countByRole(role: Roles): Promise<number> {
-    return await prisma.users.count({
+    return await prisma.user.count({
       where: { role },
     });
   }
@@ -78,10 +78,10 @@ export class UserModel {
   static async findById(
     user_id: string
   ): Promise<Pick<
-    User,
+    Users,
     "user_id" | "name" | "email" | "role" | "created_at"
   > | null> {
-    return await prisma.users.findUnique({
+    return await prisma.user.findUnique({
       where: { user_id },
       select: {
         user_id: true,
@@ -94,20 +94,20 @@ export class UserModel {
   }
 
   // Cari user berdasarkan email
-  static async findByEmail(email: string): Promise<User | null> {
-    return await prisma.users.findUnique({
+  static async findByEmail(email: string): Promise<Users | null> {
+    return await prisma.user.findUnique({
       where: { email },
     });
   }
 
   // Buat user baru
-  static async create(user: UserCreateInput): Promise<User> {
+  static async create(user: UserCreateInput): Promise<Users> {
     // Pastikan password_hash didefinisikan
     if (!user.password_hash) {
       throw new Error("Password hash harus disediakan");
     }
 
-    return await prisma.users.create({
+    return await prisma.user.create({
       data: {
         user_id: user.user_id,
         email: user.email,
@@ -137,7 +137,7 @@ export class UserModel {
     user_id: string,
     data: Partial<{ name: string; email: string; role: "USER" | "ADMIN" }>
   ) {
-    return await prisma.users.update({
+    return await prisma.user.update({
       where: { user_id },
       data,
       select: {
@@ -152,7 +152,7 @@ export class UserModel {
 
   // Hapus user
   static async delete(user_id: string): Promise<void> {
-    await prisma.users.delete({
+    await prisma.user.delete({
       where: { user_id },
     });
   }
@@ -165,7 +165,7 @@ export class UserModel {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await prisma.users.update({
+    await prisma.user.update({
       where: { user_id },
       data: { password_hash: hashedPassword },
     });
@@ -173,7 +173,7 @@ export class UserModel {
 
   // Simpan token reset password di database
   static async saveResetToken(user_id: string, resetToken: string) {
-    await prisma.users.update({
+    await prisma.user.update({
       where: { user_id },
       data: {
         reset_password_token: resetToken,
@@ -184,7 +184,7 @@ export class UserModel {
 
   // Cari user berdasarkan token reset password
   static async findByResetToken(token: string) {
-    return await prisma.users.findFirst({
+    return await prisma.user.findFirst({
       where: {
         reset_password_token: token,
         reset_password_expires: { gt: new Date() },
@@ -197,7 +197,7 @@ export class UserModel {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await prisma.users.update({
+    await prisma.user.update({
       where: { user_id },
       data: {
         password_hash: hashedPassword,
@@ -209,7 +209,7 @@ export class UserModel {
 
   // Simpan Token Verifikasi Email
   static async saveVerificationToken(user_id: string, token: string) {
-    await prisma.users.update({
+    await prisma.user.update({
       where: { user_id },
       data: {
         verification_token: token,
@@ -220,7 +220,7 @@ export class UserModel {
 
   // Cari user berdasarkan token verifikasi email
   static async findByVerificationToken(token: string) {
-    return await prisma.users.findFirst({
+    return await prisma.user.findFirst({
       where: {
         verification_token: token,
         verification_expires: { gt: new Date() },
@@ -230,7 +230,7 @@ export class UserModel {
 
   // Verifikasi email user
   static async verifyUserEmail(user_id: string) {
-    await prisma.users.update({
+    await prisma.user.update({
       where: { user_id },
       data: {
         is_verified: true,

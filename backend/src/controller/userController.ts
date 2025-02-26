@@ -309,7 +309,7 @@ const updateUser = async (req: Request, res: Response) => {
 
   try {
     // Check if user will be update on database
-    const existingUser = await prisma.users.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { user_id },
     });
 
@@ -414,7 +414,7 @@ const updatePassword = async (req: Request, res: Response) => {
 
   try {
     // Cari user berdasarkan ID dari token (hanya dirinya sendiri) dan ambil password_hash
-    const user = await prisma.users.findUnique({
+    const user = await prisma.user.findUnique({
       where: { user_id: requestingUser.user_id },
       select: {
         user_id: true,

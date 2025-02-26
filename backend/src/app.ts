@@ -1,8 +1,10 @@
 import express, { Express, Request, Response } from "express";
 import cookieParser from "cookie-parser";
 import cors from "./config/corsConfig";
+import path from "path";
 import userRoutes from "./routes/userRoutes";
 import destinationRoutes from "./routes/destinationRoutes";
+import itineraryRoutes from "./routes/itineraryRoutes";
 
 const App: Express = express();
 
@@ -19,6 +21,10 @@ App.get('/', (req: Request, res: Response) => {
 });
 
 App.use("/api/users", userRoutes);
-App.use("/api/destinatios", destinationRoutes);
+App.use("/api/destinations", destinationRoutes);
+App.use("/api/itineraries", itineraryRoutes);
+
+
+App.use("/images", express.static(path.resolve(__dirname, "../destination_image_save")));
 
 export default App;

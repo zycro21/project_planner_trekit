@@ -7,25 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model itinerary_destinations {
-  id             String        @id @db.VarChar(50)
-  itinerary_id   String?       @db.VarChar(50)
-  destination_id String?       @db.VarChar(50)
+model ItineraryDestination {
+  id             String         @id @db.VarChar(50)
+  itinerary_id   String?        @db.VarChar(50)
+  destination_id String?        @db.VarChar(50)
   day            Int?
   order_index    Int?
-  destinations   destinations? @relation(fields: [destination_id], references: [destination_id], onDelete: Cascade, onUpdate: NoAction)
-  itineraries    itineraries?  @relation(fields: [itinerary_id], references: [itinerary_id], onDelete: Cascade, onUpdate: NoAction)
+  destination    Destination?   @relation(fields: [destination_id], references: [destination_id], onDelete: Cascade, onUpdate: NoAction)
+  itinerary      Itinerary?     @relation(fields: [itinerary_id], references: [itinerary_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
-model reviews {
-  review_id      String        @id @db.VarChar(50)
-  user_id        String?       @db.VarChar(50)
-  destination_id String?       @db.VarChar(50)
+model Review {
+  review_id      String         @id @db.VarChar(50)
+  user_id        String?        @db.VarChar(50)
+  destination_id String?        @db.VarChar(50)
   rating         Int?
   comment        String?
-  created_at     DateTime?     @default(now()) @db.Timestamp(6)
-  destinations   destinations? @relation(fields: [destination_id], references: [destination_id], onDelete: Cascade, onUpdate: NoAction)
-  users          users?        @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  created_at     DateTime?      @default(now()) @db.Timestamp(6)
+  destination    Destination?   @relation(fields: [destination_id], references: [destination_id], onDelete: Cascade, onUpdate: NoAction)
+  user           User?          @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 enum Role {
@@ -33,24 +33,24 @@ enum Role {
   ADMIN
 }
 
-model users {
-  user_id       String        @id @db.VarChar(50)
-  name          String?       @db.VarChar(255)
-  email         String        @unique @db.VarChar(255)
+model User {
+  user_id       String         @id @db.VarChar(50)
+  name          String?        @db.VarChar(255)
+  email         String         @unique @db.VarChar(255)
   password_hash String
-  role          Role          @default(USER)
-  created_at    DateTime?     @default(now()) @db.Timestamp(6)
-  is_verified   Boolean       @default(false)
+  role          Role           @default(USER)
+  created_at    DateTime?      @default(now()) @db.Timestamp(6)
+  is_verified   Boolean        @default(false)
   verification_token   String?       @db.VarChar(255)
   verification_expires DateTime?
   reset_password_token  String?       @db.VarChar(255)
   reset_password_expires DateTime?
-  itineraries   itineraries[]
-  reviews       reviews[]
-  wishlist      wishlist[]
+  itineraries   Itinerary[]
+  reviews       Review[]
+  wishlist      Wishlist[]
 }
 
-model destinations {
+model Destination {
   destination_id         String                   @id @db.VarChar(50)
   name                   String?                  @db.VarChar(255)
   country                String?                  @db.VarChar(255)
@@ -58,13 +58,21 @@ model destinations {
   latitude               Decimal?                 @db.Decimal(10, 8)
   longitude              Decimal?                 @db.Decimal(11, 8)
   description            String?
-  image_url              String?
-  itinerary_destinations itinerary_destinations[]
-  reviews                reviews[]
-  wishlist               wishlist[]
+  itinerary_destinations ItineraryDestination[]
+  reviews                Review[]
+  wishlist               Wishlist[]
+  images                 DestinationImage[]       @relation("DestinationImages") 
 }
 
-model itineraries {
+model DestinationImage {
+  image_id        String         @id @default(uuid()) @db.VarChar(50)
+  destination_id  String         @db.VarChar(50)
+  image_url       String
+
+  destination Destination @relation("DestinationImages", fields: [destination_id], references: [destination_id], onDelete: Cascade)
+}
+
+model Itinerary {
   itinerary_id           String                   @id @db.VarChar(50)
   user_id                String?                  @db.VarChar(50)
   title                  String?                  @db.VarChar(255)
@@ -73,21 +81,21 @@ model itineraries {
   end_date               DateTime?                @db.Date
   is_public              Boolean?                 @default(false)
   created_at             DateTime?                @default(now()) @db.Timestamp(6)
-  users                  users?                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  itinerary_destinations itinerary_destinations[]
+  user                   User?                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  itinerary_destinations ItineraryDestination[]
 }
 
-model settings {
+model Setting {
   setting_id String  @id @db.VarChar(50)
   key        String  @unique @db.VarChar(255)
   value      String?
 }
 
-model wishlist {
+model Wishlist {
   id             String        @id @db.VarChar(50)
   user_id        String?       @db.VarChar(50)
   destination_id String?       @db.VarChar(50)
   added_at       DateTime?     @default(now()) @db.Timestamp(6)
-  destinations   destinations? @relation(fields: [destination_id], references: [destination_id], onDelete: Cascade, onUpdate: NoAction)
-  users          users?        @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  destination    Destination?  @relation(fields: [destination_id], references: [destination_id], onDelete: Cascade, onUpdate: NoAction)
+  user           User?         @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }

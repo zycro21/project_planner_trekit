@@ -11,13 +11,18 @@ import {
   authorizeAdmin,
   authorizeAllUsers,
 } from "../middleware/authMiddleware";
+import { uploadImages } from "../middleware/uploadImage";
 
 const router = Router();
 
 router.get("/destinations", authenticateUser, getAllDestinations);
 router.get("/destinations/:id", authenticateUser, getDestinationById);
-router.post("/destinations", authenticateUser, createDestination);
-router.put("/destinations/:id", authenticateUser, updateDestination);
+
+// Route untuk membuat destinasi baru dengan upload multiple images
+router.post("/destinations", authenticateUser, uploadImages, createDestination);
+
+// Route untuk update destinasi (termasuk update gambar jika ada)
+router.put("/destinations/:id", authenticateUser, uploadImages, updateDestination);
 router.delete("/destinations/:id", authenticateUser, deleteDestination);
 
 export default router;
