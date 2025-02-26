@@ -2,6 +2,7 @@ import express, { Express, Request, Response } from "express";
 import cookieParser from "cookie-parser";
 import cors from "./config/corsConfig";
 import userRoutes from "./routes/userRoutes";
+import destinationRoutes from "./routes/destinationRoutes";
 
 const App: Express = express();
 
@@ -18,5 +19,6 @@ App.get('/', (req: Request, res: Response) => {
 });
 
 App.use("/api/users", userRoutes);
+App.use("/api/destinatios", destinationRoutes);
 
 export default App;

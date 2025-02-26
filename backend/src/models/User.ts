@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -30,14 +31,32 @@ interface UserCreateInput {
   reset_password_expires?: Date | null;
 }
 
-export type Role = "USER" | "ADMIN";
+export type Roles = "USER" | "ADMIN";
 
 export class UserModel {
   // Ambil semua user
-  static async findAll(): Promise<
+  static async findAll({
+    sort = "ASC",
+    role,
+    search,
+    email,
+  }: {
+    sort?: "ASC" | "DESC";
+    role?: string;
+    search?: string;
+    email?: string;
+  }): Promise<
     Pick<User, "user_id" | "name" | "email" | "role" | "created_at">[]
   > {
     return await prisma.users.findMany({
+      where: {
+        ...(role ? { role: role as Role } : {}), // Filter berdasarkan role
+        ...(search ? { name: { contains: search, mode: "insensitive" } } : {}), // Search nama
+        ...(email ? { email: { contains: email, mode: "insensitive" } } : {}), // Search email
+      },
+      orderBy: {
+        user_id: sort === "DESC" ? "desc" : "asc", // Sorting berdasarkan user_id
+      },
       select: {
         user_id: true,
         name: true,
@@ -49,7 +68,7 @@ export class UserModel {
   }
 
   // Hitung jumlah user berdasarkan role
-  static async countByRole(role: Role): Promise<number> {
+  static async countByRole(role: Roles): Promise<number> {
     return await prisma.users.count({
       where: { role },
     });

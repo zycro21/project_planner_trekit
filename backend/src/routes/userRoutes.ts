@@ -29,7 +29,7 @@ router.get("/verify-email/:token", verifyEmail); // Verifikasi Email
 router.post("/resend-verification", resendVerificationEmail); // Kirim Ulang Verifikasi Email
 
 // Protected Routes (Butuh Login)
-router.get("/getUser", authenticateUser, authorizeAdmin, getUsers); // Get All Users
+router.get("/getUsers", authenticateUser, authorizeAdmin, getUsers); // Get All Users
 router.get("/:user_id", authenticateUser, getUserById); // Get User By ID
 router.put("/:user_id", authenticateUser, updateUser); // Update User
 router.delete("/:user_id", authenticateUser, authorizeAdmin, deleteUser); // Delete User

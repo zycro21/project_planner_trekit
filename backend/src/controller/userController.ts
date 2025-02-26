@@ -7,13 +7,22 @@ import { prisma } from "../config/database";
 const { validationResult } = require("express-validator");
 import dotenv from "dotenv";
 import crypto from "crypto";
+import { Role } from "@prisma/client";
 
 dotenv.config();
 
 // Get All Users
 const getUsers = async (req: Request, res: Response) => {
+  const { sort, role, search, email } = req.query;
+
   try {
-    const users = await UserModel.findAll();
+    const users = await UserModel.findAll({
+      sort: (sort as "ASC" | "DESC") || "ASC", // Default ke "ASC" jika tidak ada
+      role: role ? (role as Role) : undefined, // Konversi role ke Enum Role
+      search: search as string,
+      email: email as string,
+    });
+
     res.json(users);
     return;
   } catch (error) {
@@ -94,6 +103,16 @@ const registerUser = async (req: Request, res: Response) => {
     return;
   }
 
+  // Validasi Password
+  const passwordRegex = /^(?=.*[0-9])(?=.*[\W_])[A-Za-z0-9\W_]{8,}$/;
+  if (!passwordRegex.test(password)) {
+    res.status(400).json({
+      message:
+        "Password harus minimal 8 karakter, mengandung angka, dan simbol.",
+    });
+    return;
+  }
+
   try {
     // Cek apakah email sudah pernah digunakan
     const existingUser = await UserModel.findByEmail(email);
@@ -127,8 +146,8 @@ const registerUser = async (req: Request, res: Response) => {
       is_verified: false,
       verification_token: verificationToken,
       verification_expires: verificationExpires,
-      reset_password_token: null, // Tambahkan nilai default null
-      reset_password_expires: null, // Tambahkan nilai default null
+      reset_password_token: null,
+      reset_password_expires: null,
     });
 
     // Kirim email verifikasi
@@ -193,6 +212,7 @@ const resendVerificationEmail = async (req: Request, res: Response) => {
     res.status(200).json({ message: "Email verifikasi telah dikirim ulang." });
     return;
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ message: "Terjadi kesalahan.", error });
     return;
   }
@@ -225,6 +245,15 @@ const loginUser = async (req: Request, res: Response) => {
     // Pastikan password_hash ada
     if (!user.password_hash) {
       res.status(401).json({ message: "Password tidak ditemukan" });
+      return;
+    }
+
+    // Pastikan email sudah diverifikasi
+    if (!user.is_verified) {
+      res.status(403).json({
+        message:
+          "Email belum diverifikasi. Silakan cek email Anda untuk verifikasi.",
+      });
       return;
     }
 
@@ -373,6 +402,16 @@ const updatePassword = async (req: Request, res: Response) => {
     return;
   }
 
+  // Validasi Password Baru
+  const passwordRegex = /^(?=.*[0-9])(?=.*[\W_])[A-Za-z0-9\W_]{8,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    res.status(400).json({
+      message:
+        "Password baru harus minimal 8 karakter, mengandung angka, dan simbol.",
+    });
+    return;
+  }
+
   try {
     // Cari user berdasarkan ID dari token (hanya dirinya sendiri) dan ambil password_hash
     const user = await prisma.users.findUnique({
@@ -487,6 +526,16 @@ const forgotPassword = async (req: Request, res: Response) => {
 const resetPassword = async (req: Request, res: Response) => {
   const { token, newPassword } = req.body;
 
+  // Validasi Password Baru
+  const passwordRegex = /^(?=.*[0-9])(?=.*[\W_])[A-Za-z0-9\W_]{8,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    res.status(400).json({
+      message:
+        "Password baru harus minimal 8 karakter, mengandung angka, dan simbol.",
+    });
+    return;
+  }
+
   try {
     // Verifikasi token
     const decoded = jwt.verify(
@@ -506,7 +555,7 @@ const resetPassword = async (req: Request, res: Response) => {
     }
 
     // Update password baru
-    await UserModel.updatePassword(decoded.user_id, newPassword);
+    await UserModel.updateResetPassword(decoded.user_id, newPassword);
 
     res.json({ message: "Password berhasil diperbarui" });
     return;

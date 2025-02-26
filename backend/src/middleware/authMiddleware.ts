@@ -45,7 +45,7 @@ const authorizeAdmin = (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  if (req.user.role !== "admin") {
+  if (req.user.role !== "ADMIN") {
     res
       .status(403)
       .json({ message: "Akses ditolak, hanya admin yang bisa mengakses" });
