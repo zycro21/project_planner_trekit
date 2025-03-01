@@ -41,21 +41,21 @@ router.delete(
   deleteItinerary
 );
 
-// 🔹 Tambah destinasi ke itinerary
+// Tambah destinasi ke itinerary
 router.post(
   "/itinerary/:id/destination",
   authenticateUser,
   addDestinationToItinerary
 );
 
-// 🔹 Hapus destinasi dari itinerary
+// Hapus destinasi dari itinerary
 router.delete(
   "/itinerary/:id/destination/:destination_id",
   authenticateUser,
   removeDestinationFromItinerary
 );
 
-// 🔹 Update order_index dan day dalam itinerary
+// Update order_index dan day dalam itinerary
 router.put(
   "/itinerary/:id/destination/:destination_id",
   authenticateUser,
