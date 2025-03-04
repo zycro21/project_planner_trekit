@@ -19,8 +19,8 @@ router.get(
 router.get("/:review_id", authenticateUser, ReviewController.getReviewById);
 router.put("/:review_id", authenticateUser, ReviewController.updateReview);
 router.delete("/:review_id", authenticateUser, ReviewController.deleteReview);
-router.get("/review/:destination_id", ReviewController.getReviewsByDestination);
-router.get("/review/:user_id", authenticateUser, ReviewController.getReviewsByUser);
-router.get("/review/:destination_id/average-rating", ReviewController.getAverageRating);
+router.get("/review/:destination_id", authenticateUser, ReviewController.getReviewsByDestination);
+router.get("/review/user/:user_id", authenticateUser, ReviewController.getReviewsByUser);
+router.get("/review/:destination_id/average-rating", authenticateUser, ReviewController.getAverageRating);
 
 export default router;

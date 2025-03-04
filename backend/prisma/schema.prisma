@@ -62,6 +62,8 @@ model Destination {
   reviews                Review[]
   wishlist_destinations  WishlistDestination[]
   images                 DestinationImage[]       @relation("DestinationImages") 
+
+  @@unique([name, country, city], name: "unique_destination")
 }
 
 model DestinationImage {

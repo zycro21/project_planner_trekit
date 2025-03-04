@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/database";
 import { DestinationModel } from "../models/Destination";
+import { PrismaClient, Prisma } from "@prisma/client";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -38,21 +39,20 @@ export const getAllDestinations = async (req: Request, res: Response) => {
       totalPages: Math.ceil(total / limitValue),
     });
   } catch (error) {
-    console.error("Error fetching destinations:", error);
-
     res.status(500).json({
       message: "Terjadi kesalahan server",
       error: error instanceof Error ? error.message : "Unknown error",
     });
+    return;
   }
 };
 
 export const getDestinationById = async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  // Validasi ID
-  if (!id) {
-    res.status(400).json({ message: "ID destinasi diperlukan" });
+  // Pastikan ID hanya berisi huruf, angka, atau karakter tertentu yang diizinkan
+  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) {
+    res.status(400).json({ message: "ID destinasi tidak valid" });
     return;
   }
 
@@ -66,17 +66,11 @@ export const getDestinationById = async (req: Request, res: Response) => {
 
     res.json(destination);
   } catch (error) {
-    console.error("Error fetching destination:", error);
-
-    if (error instanceof Error) {
-      res
-        .status(500)
-        .json({ message: "Terjadi kesalahan server", error: error.message });
-      return;
-    } else {
-      res.status(500).json({ message: "Terjadi kesalahan server" });
-      return;
-    }
+    res.status(500).json({
+      message: "Terjadi kesalahan server",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    return;
   }
 };
 
@@ -100,7 +94,7 @@ export const createDestination = async (req: Request, res: Response) => {
   }
 
   try {
-    // Cek apakah destinasi dengan nama yang sama sudah ada
+    // Cek apakah destinasi sudah ada (manual check)
     const existingDestination = await prisma.destination.findFirst({
       where: { name, country, city },
     });
@@ -115,7 +109,6 @@ export const createDestination = async (req: Request, res: Response) => {
       ? (req.files as Express.Multer.File[]).map((file) => file.filename)
       : [];
 
-    // Buat destinasi baru dengan model
     const destination = await DestinationModel.create({
       name,
       country,
@@ -123,18 +116,21 @@ export const createDestination = async (req: Request, res: Response) => {
       latitude,
       longitude,
       description,
-      images, // Kirim langsung array gambar ke model
+      images,
     });
 
     res.status(201).json(destination);
+  } catch (error: any) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      res.status(409).json({ message: "Destinasi dengan nama ini sudah ada" });
+      return;
+    }
+    console.error("Error saat membuat destinasi:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server" });
     return;
-  } catch (error) {
-    console.error("Error creating destination:", error);
-
-    res.status(500).json({
-      message: "Terjadi kesalahan server",
-      error: (error as Error).message,
-    });
   }
 };
 

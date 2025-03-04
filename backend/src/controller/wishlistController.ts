@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import { WishlistModel } from "../models/Wishlist";
+import { PrismaClient, Prisma, Review } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export class WishlistController {
   // 📌 Membuat wishlist baru dengan banyak destinasi
@@ -45,6 +48,8 @@ export class WishlistController {
   static async addDestinationsToWishlist(req: Request, res: Response) {
     try {
       const { wishlist_id, destination_ids } = req.body;
+      const userId = req.user?.user_id; // Ambil user_id dari token JWT
+      const userRole = req.user?.role; // Ambil role dari token JWT
 
       if (
         !wishlist_id ||
@@ -58,6 +63,31 @@ export class WishlistController {
         return;
       }
 
+      // Cek apakah wishlist ada dan ambil user_id pembuatnya
+      const wishlist = await prisma.wishlist.findUnique({
+        where: { id: wishlist_id },
+        select: { user_id: true },
+      });
+
+      if (!wishlist) {
+        res.status(404).json({
+          success: false,
+          message: "Wishlist tidak ditemukan.",
+        });
+        return;
+      }
+
+      // Hanya user yang membuat wishlist atau admin yang boleh menambahkan destinasi
+      if (wishlist.user_id !== userId && userRole !== "ADMIN") {
+        res.status(403).json({
+          success: false,
+          message:
+            "Anda tidak memiliki izin untuk menambahkan destinasi ke wishlist ini.",
+        });
+        return;
+      }
+
+      // Tambahkan destinasi ke wishlist
       await WishlistModel.addDestinationsToWishlist(
         wishlist_id,
         destination_ids
@@ -67,32 +97,49 @@ export class WishlistController {
         success: true,
         message: "Destinasi berhasil ditambahkan ke wishlist.",
       });
+      return;
     } catch (error: any) {
       res.status(500).json({
         success: false,
         message: "Gagal menambahkan destinasi ke wishlist.",
         error: error.message,
       });
+      return;
     }
   }
 
-  // 📌 Mengambil semua wishlist
+  // 📌 Mengambil semua wishlist dengan pagination & sorting
   static async getAllWishlists(req: Request, res: Response) {
     try {
-      const wishlists = await WishlistModel.findAll();
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const sortBy = (req.query.sort_by as string) || "date";
+      const sortOrder = (req.query.sort_order as string) || "desc";
+
+      const { wishlists, totalWishlists } = await WishlistModel.findAll(
+        page,
+        limit,
+        sortBy,
+        sortOrder
+      );
 
       res.json({
         success: true,
         message: "Data wishlist berhasil diambil.",
-        total: wishlists.length,
+        total: totalWishlists,
+        totalPages: Math.ceil(totalWishlists / limit),
+        currentPage: page,
+        perPage: limit,
         data: wishlists,
       });
+      return;
     } catch (error: any) {
       res.status(500).json({
         success: false,
         message: "Gagal mengambil semua wishlist.",
         error: error.message,
       });
+      return;
     }
   }
 
@@ -171,11 +218,14 @@ export class WishlistController {
     }
   }
 
-  // 📌 Menghapus satu atau lebih destinasi dari wishlist
+  // Menghapus satu atau lebih destinasi dari wishlist
   static async removeDestinationsFromWishlist(req: Request, res: Response) {
     try {
       const { wishlist_id, destination_ids } = req.body;
+      const userId = req.user?.user_id; // Ambil user_id dari token
+      const userRole = req.user?.role; // Ambil role dari token
 
+      // 🔹 Validasi input
       if (
         !wishlist_id ||
         !Array.isArray(destination_ids) ||
@@ -188,6 +238,32 @@ export class WishlistController {
         return;
       }
 
+      // 🔹 Cari wishlist berdasarkan ID
+      const wishlist = await prisma.wishlist.findUnique({
+        where: { id: wishlist_id },
+        select: { user_id: true }, // Ambil hanya user_id pemiliknya
+      });
+
+      // 🔹 Jika wishlist tidak ditemukan
+      if (!wishlist) {
+        res.status(404).json({
+          success: false,
+          message: "Wishlist tidak ditemukan.",
+        });
+        return;
+      }
+
+      // 🔹 Cek apakah user adalah pemilik wishlist atau ADMIN
+      if (wishlist.user_id !== userId && userRole !== "ADMIN") {
+        res.status(403).json({
+          success: false,
+          message:
+            "Anda tidak memiliki izin untuk menghapus destinasi dari wishlist ini.",
+        });
+        return;
+      }
+
+      // 🔹 Hapus destinasi dari wishlist
       await WishlistModel.removeDestinationsFromWishlist(
         wishlist_id,
         destination_ids
@@ -197,12 +273,14 @@ export class WishlistController {
         success: true,
         message: "Destinasi berhasil dihapus dari wishlist.",
       });
+      return;
     } catch (error: any) {
       res.status(500).json({
         success: false,
         message: "Gagal menghapus destinasi dari wishlist.",
         error: error.message,
       });
+      return;
     }
   }
 
@@ -210,7 +288,10 @@ export class WishlistController {
   static async deleteWishlist(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const userId = req.user?.user_id; // Ambil user_id dari token
+      const userRole = req.user?.role; // Ambil role dari token
 
+      // 🔹 Validasi input
       if (!id) {
         res.status(400).json({
           success: false,
@@ -219,6 +300,31 @@ export class WishlistController {
         return;
       }
 
+      // 🔹 Cari wishlist berdasarkan ID
+      const wishlist = await prisma.wishlist.findUnique({
+        where: { id },
+        select: { user_id: true }, // Ambil hanya user_id pemiliknya
+      });
+
+      // 🔹 Jika wishlist tidak ditemukan
+      if (!wishlist) {
+        res.status(404).json({
+          success: false,
+          message: "Wishlist tidak ditemukan.",
+        });
+        return;
+      }
+
+      // 🔹 Cek apakah user adalah pemilik wishlist atau ADMIN
+      if (wishlist.user_id !== userId && userRole !== "ADMIN") {
+        res.status(403).json({
+          success: false,
+          message: "Anda tidak memiliki izin untuk menghapus wishlist ini.",
+        });
+        return;
+      }
+
+      // 🔹 Hapus wishlist
       await WishlistModel.delete(id);
 
       res.json({

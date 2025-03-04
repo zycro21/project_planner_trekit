@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import { ReviewModel } from "../models/Review";
+import { PrismaClient, Prisma, Review } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export class ReviewController {
   // Ambil semua review
@@ -132,7 +135,7 @@ export class ReviewController {
       }
 
       // Hanya admin atau pemilik review yang bisa update
-      if (role !== "admin" && existingReview.user_id !== user_id) {
+      if (role !== "ADMIN" && existingReview.user_id !== user_id) {
         res.status(403).json({
           success: false,
           message: "Anda tidak memiliki izin untuk mengupdate review ini.",
@@ -166,8 +169,10 @@ export class ReviewController {
       const { review_id } = req.params;
       const { user_id, role } = req.user as { user_id: string; role: string }; // Ambil user dari auth middleware
 
-      // Cek apakah review ada
+      console.log("Mencari review dengan ID:", review_id); // Debug
       const existingReview = await ReviewModel.findById(review_id);
+      console.log("Review ditemukan:", existingReview); // Debug
+
       if (!existingReview) {
         res.status(404).json({
           success: false,
@@ -177,7 +182,7 @@ export class ReviewController {
       }
 
       // Hanya admin atau pemilik review yang bisa hapus
-      if (role !== "admin" && existingReview.user_id !== user_id) {
+      if (role !== "ADMIN" && existingReview.user_id !== user_id) {
         res.status(403).json({
           success: false,
           message: "Anda tidak memiliki izin untuk menghapus review ini.",
@@ -191,12 +196,14 @@ export class ReviewController {
         success: true,
         message: "Review berhasil dihapus.",
       });
+      return;
     } catch (error: any) {
       res.status(500).json({
         success: false,
         message: "Gagal menghapus review",
         error: error.message,
       });
+      return;
     }
   }
 
@@ -230,6 +237,14 @@ export class ReviewController {
   static async getReviewsByUser(req: Request, res: Response) {
     try {
       const { user_id } = req.params;
+
+      // Debug sebelum query dikembalikan
+      const debugQuery = await prisma.review.findMany({ where: { user_id } });
+      console.error(
+        "🟢 DEBUG (console.error): Data dari Prisma sebelum findAllUser:",
+        debugQuery
+      );
+
       const { min_rating, sort, limit, offset } = req.query;
 
       const result = await ReviewModel.findAllUser({
@@ -240,13 +255,21 @@ export class ReviewController {
         offset: offset ? parseInt(offset as string) : undefined,
       });
 
-      res.json(result);
+      res.json({
+        success: true,
+        total: result.total,
+        limit: limit ? parseInt(limit as string) : null,
+        offset: offset ? parseInt(offset as string) : null,
+        reviews: result.reviews,
+      });
+      return;
     } catch (error: any) {
       res.status(500).json({
         success: false,
         message: "Gagal mengambil review berdasarkan user",
         error: error.message,
       });
+      return;
     }
   }
 

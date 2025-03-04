@@ -76,6 +76,7 @@ export class ItineraryModel {
       },
     });
   }
+
   // Get all itineraries by user_id with destinations
   static async findByUserId(user_id: string) {
     return await prisma.itinerary.findMany({
@@ -179,9 +180,7 @@ export class ItineraryModel {
   ) {
     return await prisma.itineraryDestination.create({
       data: {
-        id: `${itinerary_id}-${destinationData.destination_id}-${crypto
-          .randomUUID()
-          .slice(0, 5)}`,
+        id: `${itinerary_id}-${destinationData.destination_id}-${uuidv4().slice(0, 5)}`,
         itinerary_id,
         destination_id: destinationData.destination_id,
         day: destinationData.day,

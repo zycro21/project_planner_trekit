@@ -161,7 +161,9 @@ export class ReviewModel {
   }) {
     const whereCondition: Prisma.ReviewWhereInput = {
       ...(user_id ? { user_id } : {}),
-      ...(min_rating ? { rating: { gte: min_rating } } : {}),
+      ...(typeof min_rating !== "undefined"
+        ? { rating: { gte: min_rating } }
+        : {}),
     };
 
     const total = await prisma.review.count({ where: whereCondition });
@@ -169,11 +171,11 @@ export class ReviewModel {
     const reviews = await prisma.review.findMany({
       where: whereCondition,
       include: {
-        destination: { select: { name: true, city: true, country: true } }, // Ambil info destinasi
+        destination: { select: { name: true, city: true, country: true } },
       },
-      orderBy: { created_at: sort === "DESC" ? "desc" : "asc" },
-      take: limit,
-      skip: offset,
+      orderBy: { created_at: sort === "ASC" ? "asc" : "desc" },
+      take: limit && limit > 0 ? limit : 10,
+      skip: offset && offset >= 0 ? offset : 0,
     });
 
     return { reviews, total };

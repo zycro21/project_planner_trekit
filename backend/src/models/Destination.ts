@@ -76,31 +76,28 @@ export class DestinationModel {
     })) as DestinationWithImages | null; // Paksa TypeScript mengenali `images`
   }
 
-  // Generate destination_id secara otomatis
+  // Fungsi Generate ID
   static async generateDestinationId(
     country: string,
     city: string
   ): Promise<string> {
-    // Format country & city agar tidak ada spasi (replace dengan "_")
-    const countryFormatted = country.replace(/\s+/g, "_");
-    const cityFormatted = city.replace(/\s+/g, "_");
+    try {
+      const countryFormatted = country.replace(/\s+/g, "_");
+      const cityFormatted = city.replace(/\s+/g, "_");
 
-    // Hitung jumlah destinasi yang sudah ada di negara & kota ini
-    const count = await prisma.destination.count({
-      where: {
-        country,
-        city,
-      },
-    });
+      const count = await prisma.destination.count({
+        where: { country, city },
+      });
 
-    // Format angka menjadi 4 digit (misalnya: 0001, 0002, ...)
-    const number = (count + 1).toString().padStart(4, "0");
-
-    // Gabungkan format ID
-    return `${countryFormatted}_${cityFormatted}_${number}`;
+      const number = (count + 1).toString().padStart(4, "0");
+      return `${countryFormatted}_${cityFormatted}_${number}`;
+    } catch (error) {
+      console.error("Error saat membuat destination ID:", error);
+      throw new Error("Gagal membuat destination ID");
+    }
   }
 
-  // Create New Destination + Multiple Images
+  // Create Destination (with multiple image)
   static async create(data: {
     name: string;
     country: string;
@@ -108,38 +105,51 @@ export class DestinationModel {
     latitude?: number;
     longitude?: number;
     description?: string;
-    images?: string[]; // Array untuk menyimpan banyak gambar
+    images?: string[];
   }) {
-    const destination_id = await this.generateDestinationId(
-      data.country,
-      data.city
-    );
+    let destination_id: string;
 
-    // Buat destinasi baru beserta gambar-gambarnya
-    await prisma.destination.create({
-      data: {
-        destination_id,
-        name: data.name,
-        country: data.country,
-        city: data.city,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        description: data.description,
-        images: {
-          create:
-            data.images?.map((image) => ({
-              image_url: image,
-              destination_id, // FK harus ada
-            })) || [],
+    try {
+      destination_id = await this.generateDestinationId(
+        data.country,
+        data.city
+      );
+    } catch (error) {
+      console.error("Error saat generate ID destinasi:", error);
+      throw new Error("Gagal generate ID destinasi");
+    }
+
+    try {
+      const newDestination = await prisma.destination.create({
+        data: {
+          destination_id,
+          name: data.name,
+          country: data.country,
+          city: data.city,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          description: data.description,
+          images: {
+            create:
+              data.images?.map((image) => ({
+                image_url: image,
+                destination_id,
+              })) || [],
+          },
         },
-      },
-    });
+        include: { images: true },
+      });
 
-    // Fetch destination lengkap dengan images setelah dibuat
-    return await prisma.destination.findUnique({
-      where: { destination_id },
-      include: { images: true },
-    });
+      return newDestination;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2002") {
+          throw new Error("DUPLICATE_DESTINATION"); 
+        }
+      }
+      console.error("Error saat menyimpan destinasi ke database:", error);
+      throw new Error("Gagal menyimpan destinasi");
+    }
   }
 
   // Cek apakah destinasi dengan nama yang sama sudah ada

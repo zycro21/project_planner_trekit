@@ -6,6 +6,7 @@ import userRoutes from "./routes/userRoutes";
 import destinationRoutes from "./routes/destinationRoutes";
 import itineraryRoutes from "./routes/itineraryRoutes";
 import reviewRoutes from "./routes/reviewRoutes";
+import wishlistRoutes from "./routes/wishlistRoutes";
 
 const App: Express = express();
 
@@ -25,6 +26,7 @@ App.use("/api/users", userRoutes);
 App.use("/api/destinations", destinationRoutes);
 App.use("/api/itineraries", itineraryRoutes);
 App.use("/api/reviews", reviewRoutes);
+App.use("/api/wishlists", wishlistRoutes);
 
 App.use("/images", express.static(path.resolve(__dirname, "../destination_image_save")));
 

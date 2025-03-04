@@ -57,15 +57,44 @@ export class WishlistModel {
     });
   }
 
-  // 📌 Mengambil semua wishlist
-  static async findAll() {
-    return await prisma.wishlist.findMany({
+  // 📌 Mengambil semua wishlist dengan pagination & sorting
+  static async findAll(
+    page: number,
+    limit: number,
+    sortBy: string,
+    sortOrder: string
+  ) {
+    const skip = (page - 1) * limit; // Hitung offset
+
+    // Tentukan kolom sorting (default: `added_at`)
+    let orderByField: string;
+    switch (sortBy) {
+      case "name":
+        orderByField = "wishlist_name";
+        break;
+      case "date":
+      default:
+        orderByField = "added_at";
+        break;
+    }
+
+    // Tentukan urutan sorting (asc / desc)
+    const orderByDirection = sortOrder === "asc" ? "asc" : "desc";
+
+    const wishlists = await prisma.wishlist.findMany({
       include: {
         wishlist_destinations: { include: { destination: true } },
         user: { select: { name: true, email: true } },
       },
-      orderBy: { added_at: "desc" },
+      orderBy: { [orderByField]: orderByDirection },
+      skip,
+      take: limit,
     });
+
+    // Hitung total wishlist untuk pagination
+    const totalWishlists = await prisma.wishlist.count();
+
+    return { wishlists, totalWishlists };
   }
 
   // 📌 Mengambil semua wishlist berdasarkan user_id

@@ -1,28 +1,35 @@
 import express from "express";
 import { WishlistController } from "../controller/wishlistController";
+import {
+  authenticateUser,
+  authorizeAdmin,
+  authorizeAllUsers,
+} from "../middleware/authMiddleware";
 
 const router = express.Router();
 
 // 📌 Membuat wishlist baru dengan minimal 1 destinasi (menerima `destination_ids[]`)
-router.post("/wishlist/create", WishlistController.createWishlist);
+router.post("/wishlist/create", authenticateUser, WishlistController.createWishlist);
 
 // 📌 Menambahkan satu atau lebih destinasi ke wishlist yang sudah ada
 router.post(
   "/wishlist/add-destinations",
+  authenticateUser,
   WishlistController.addDestinationsToWishlist
 );
 
 // 📌 Menghapus satu atau lebih destinasi dari wishlist
 router.delete(
   "/wishlist/remove-destinations",
+  authenticateUser,
   WishlistController.removeDestinationsFromWishlist
 );
 
 // 📌 Menghapus wishlist beserta semua relasinya
-router.delete("/wishlist/:id", WishlistController.deleteWishlist);
+router.delete("/wishlist/:id", authenticateUser, WishlistController.deleteWishlist);
 
 // 📌 GET Semua Wishlist
-router.get("/wishlists", WishlistController.getAllWishlists);
+router.get("/wishlists", authenticateUser, WishlistController.getAllWishlists);
 
 // 📌 GET Wishlist berdasarkan ID
 router.get("/wishlist/:id", WishlistController.getWishlistById);
