@@ -954,5 +954,927 @@ describe("GET /api/wishlists/wishlists", () => {
 });
 
 describe("GET /api/wishlists/wishlist/user/:user_id", () => {
+  let userToken: string;
+  let adminToken: string;
+  let otherUserToken: string;
+  let testUserId: string;
+  let adminUserId: string;
+  let otherUserId: string;
 
+  beforeAll(async () => {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    // 🔹 Buat user biasa
+    testUserId = "user_test";
+    await prisma.user.create({
+      data: {
+        user_id: testUserId,
+        name: "Test User",
+        email: "testuser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat admin
+    adminUserId = "admin_test";
+    await prisma.user.create({
+      data: {
+        user_id: adminUserId,
+        name: "Admin User",
+        email: "admin@example.com",
+        password_hash: hashedPassword,
+        role: "ADMIN",
+      },
+    });
+
+    // 🔹 Buat user lain
+    otherUserId = "other_user";
+    await prisma.user.create({
+      data: {
+        user_id: otherUserId,
+        name: "Other User",
+        email: "otheruser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat banyak wishlist untuk testUserId
+    const testWishlists = Array.from({ length: 4 }, (_, i) => ({
+      id: `wishlist-${testUserId}-${i + 1}`,
+      user_id: testUserId,
+      wishlist_name: `Wishlist ${i + 1}`,
+      added_at: new Date(),
+    }));
+
+    // 🔹 Buat beberapa wishlist untuk otherUserId
+    const otherWishlists = Array.from({ length: 3 }, (_, i) => ({
+      id: `wishlist-${otherUserId}-${i + 1}`,
+      user_id: otherUserId,
+      wishlist_name: `Other Wishlist ${i + 1}`,
+      added_at: new Date(),
+    }));
+
+    await prisma.wishlist.createMany({
+      data: [...testWishlists, ...otherWishlists],
+    });
+
+    // 🔹 Generate token JWT
+    userToken = jwt.sign(
+      { user_id: testUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+    adminToken = jwt.sign(
+      { user_id: adminUserId, role: "ADMIN" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+    otherUserToken = jwt.sign(
+      { user_id: otherUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+  });
+
+  afterAll(async () => {
+    await prisma.wishlist.deleteMany();
+    await prisma.user.deleteMany();
+  });
+
+  // ✅ Berhasil mengambil wishlist berdasarkan user_id
+  test("✅ Harus berhasil mengambil wishlist berdasarkan user_id", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Wishlist berhasil ditemukan.");
+    expect(res.body.data).toHaveLength(4);
+  });
+
+  // ✅ Admin bisa mengambil wishlist user lain
+  test("✅ Admin bisa mengambil wishlist user lain", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveLength(4);
+  });
+
+  // ❌ Jika user_id tidak memiliki wishlist, harus return 404
+  test("❌ Jika user_id tidak memiliki wishlist, harus return 404", async () => {
+    const res = await request(app)
+      .get("/api/wishlists/wishlist/user/nonexistent_user")
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(404);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Wishlist tidak ditemukan untuk user ini.");
+  });
+
+  // ❌ Gagal jika terjadi error di server (500 Internal Server Error)
+  test("❌ Harus gagal jika terjadi error di server", async () => {
+    const mocktest = jest
+      .spyOn(WishlistModel, "findAllByUser")
+      .mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(500);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Gagal mengambil wishlist berdasarkan user.");
+    expect(res.body.error).toBe("Database error");
+
+    mocktest.mockRestore();
+  });
+});
+
+describe("GET /api/wishlists/wishlist/:id", () => {
+  let userToken: string;
+  let adminToken: string;
+  let otherUserToken: string;
+  let testUserId: string;
+  let adminUserId: string;
+  let otherUserId: string;
+  let testWishlistId: string;
+  let otherWishlistId: string;
+
+  beforeAll(async () => {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    // 🔹 Buat user biasa
+    testUserId = "user_test";
+    await prisma.user.create({
+      data: {
+        user_id: testUserId,
+        name: "Test User",
+        email: "testuser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat admin
+    adminUserId = "admin_test";
+    await prisma.user.create({
+      data: {
+        user_id: adminUserId,
+        name: "Admin User",
+        email: "admin@example.com",
+        password_hash: hashedPassword,
+        role: "ADMIN",
+      },
+    });
+
+    // 🔹 Buat user lain
+    otherUserId = "other_user";
+    await prisma.user.create({
+      data: {
+        user_id: otherUserId,
+        name: "Other User",
+        email: "otheruser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat wishlist untuk testUserId
+    testWishlistId = `wishlist-${testUserId}-1`;
+    await prisma.wishlist.create({
+      data: {
+        id: testWishlistId,
+        user_id: testUserId,
+        wishlist_name: "Wishlist 1",
+        added_at: new Date(),
+      },
+    });
+
+    // 🔹 Buat wishlist untuk otherUserId
+    otherWishlistId = `wishlist-${otherUserId}-1`;
+    await prisma.wishlist.create({
+      data: {
+        id: otherWishlistId,
+        user_id: otherUserId,
+        wishlist_name: "Other Wishlist 1",
+        added_at: new Date(),
+      },
+    });
+
+    // 🔹 Generate token JWT
+    userToken = jwt.sign(
+      { user_id: testUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+    adminToken = jwt.sign(
+      { user_id: adminUserId, role: "ADMIN" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+    otherUserToken = jwt.sign(
+      { user_id: otherUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+  });
+
+  afterAll(async () => {
+    await prisma.wishlist.deleteMany();
+    await prisma.user.deleteMany();
+  });
+
+  // ✅ Berhasil mengambil wishlist berdasarkan ID
+  test("✅ Harus berhasil mengambil wishlist berdasarkan ID", async () => {
+    jest.spyOn(WishlistModel, "findById").mockResolvedValue({
+      id: testWishlistId,
+      user_id: testUserId,
+      wishlist_name: "Wishlist 1",
+      added_at: new Date(), // 🔹 Tambahkan `added_at`
+      wishlist_destinations: [], // 🔹 Bisa tetap kosong, tapi harus punya struktur benar
+      user: { name: "Test User", email: "testuser@example.com" }, // 🔹 Pastikan struktur user sesuai
+    });
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Wishlist berhasil ditemukan.");
+    expect(res.body.data.id).toBe(testWishlistId);
+  });
+
+  // ✅ Admin juga bisa mengambil wishlist berdasarkan ID
+  test("✅ Admin juga bisa mengambil wishlist berdasarkan ID", async () => {
+    jest.spyOn(WishlistModel, "findById").mockResolvedValue({
+      id: testWishlistId,
+      user_id: testUserId,
+      wishlist_name: "Wishlist 1",
+      added_at: new Date(),
+      wishlist_destinations: [],
+      user: { name: "Test User", email: "testuser@example.com" },
+    });
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.id).toBe(testWishlistId);
+  });
+
+  // ❌ Gagal jika wishlist tidak ditemukan (404)
+  test("❌ Harus gagal jika wishlist tidak ditemukan", async () => {
+    jest.spyOn(WishlistModel, "findById").mockResolvedValue(null);
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/invalid-id`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(404);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Wishlist tidak ditemukan.");
+  });
+
+  // ❌ Gagal jika ID tidak diberikan (400)
+  test("❌ Harus gagal jika ID tidak diberikan", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(404); // Karena endpoint tidak valid
+
+    expect(res.body.success).toBeUndefined(); // Karena tidak ada response JSON
+  });
+
+  // ❌ Gagal jika terjadi error di server (500 Internal Server Error)
+  test("❌ Harus gagal jika terjadi error di server", async () => {
+    const mocktest = jest
+      .spyOn(WishlistModel, "findById")
+      .mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(500);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Gagal mengambil wishlist.");
+    expect(res.body.error).toBe("Database error");
+
+    mocktest.mockRestore();
+  });
+});
+
+describe("PUT /api/wishlists/wishlist/:id", () => {
+  let userToken: string;
+  let adminToken: string;
+  let anotherUserToken: string;
+  let testUserId: string;
+  let testAdminId: string;
+  let anotherUserId: string;
+  let testWishlistId: string;
+
+  beforeAll(async () => {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    // 🔹 Buat user pemilik wishlist
+    testUserId = "user_test_wishlist";
+    await prisma.user.create({
+      data: {
+        user_id: testUserId,
+        name: "Test User",
+        email: "testuser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat user lain yang BUKAN pemilik wishlist
+    anotherUserId = "user_other";
+    await prisma.user.create({
+      data: {
+        user_id: anotherUserId,
+        name: "Other User",
+        email: "otheruser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat user dengan role ADMIN
+    testAdminId = "admin_test";
+    await prisma.user.create({
+      data: {
+        user_id: testAdminId,
+        name: "Admin User",
+        email: "admin@example.com",
+        password_hash: hashedPassword,
+        role: "ADMIN",
+      },
+    });
+
+    // 🔹 Buat wishlist milik testUserId
+    testWishlistId = `wishlist-${testUserId}-abcd1234`;
+    await prisma.wishlist.create({
+      data: {
+        id: testWishlistId,
+        user_id: testUserId,
+        wishlist_name: "Wishlist Liburan",
+      },
+    });
+
+    // 🔹 Generate token JWT
+    userToken = jwt.sign(
+      { user_id: testUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    anotherUserToken = jwt.sign(
+      { user_id: anotherUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    adminToken = jwt.sign(
+      { user_id: testAdminId, role: "ADMIN" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+  });
+
+  afterAll(async () => {
+    await prisma.wishlist.deleteMany();
+    await prisma.user.deleteMany();
+  });
+
+  // ✅ Berhasil update nama wishlist oleh pemiliknya
+  it("✅ Harus berhasil update nama wishlist oleh pemiliknya", async () => {
+    const res = await request(app)
+      .put(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ wishlist_name: "Wishlist Baru" })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Nama wishlist berhasil diperbarui.");
+    expect(res.body.data.wishlist_name).toBe("Wishlist Baru");
+  });
+
+  // ✅ Berhasil update nama wishlist oleh ADMIN
+  it("✅ Harus berhasil update nama wishlist oleh ADMIN", async () => {
+    const res = await request(app)
+      .put(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ wishlist_name: "Wishlist Admin" })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Nama wishlist berhasil diperbarui.");
+    expect(res.body.data.wishlist_name).toBe("Wishlist Admin");
+  });
+
+  // ❌ Gagal update wishlist yang tidak ditemukan
+  it("❌ Harus gagal jika wishlist tidak ditemukan", async () => {
+    const res = await request(app)
+      .put("/api/wishlists/wishlist/not-found-id")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ wishlist_name: "Wishlist Tidak Ada" })
+      .expect(404);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Wishlist tidak ditemukan.");
+  });
+
+  // ❌ Gagal update tanpa mengirimkan wishlist_name
+  it("❌ Harus gagal jika wishlist_name tidak dikirim", async () => {
+    const res = await request(app)
+      .put(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({})
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Nama wishlist wajib diisi.");
+  });
+
+  // ❌ Gagal update jika user bukan pemilik wishlist dan bukan ADMIN
+  it("❌ Harus gagal jika user bukan pemilik wishlist dan bukan ADMIN", async () => {
+    const res = await request(app)
+      .put(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${anotherUserToken}`)
+      .send({ wishlist_name: "Tidak Bisa Ubah" })
+      .expect(403);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe(
+      "Anda tidak memiliki izin untuk mengubah wishlist ini."
+    );
+  });
+
+  // ❌ Gagal dengan server error (500 Internal Server Error)
+  it("❌ Harus gagal dengan server error (500) jika terjadi kesalahan di server", async () => {
+    const mocktest = jest
+      .spyOn(WishlistModel, "updateWishlistName")
+      .mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app)
+      .put(`/api/wishlists/wishlist/${testWishlistId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ wishlist_name: "Wishlist Error" })
+      .expect(500);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Gagal memperbarui nama wishlist.");
+    expect(res.body.error).toBe("Database error");
+
+    // 🔹 Kembalikan fungsi Prisma ke normal setelah test selesai
+    mocktest.mockRestore();
+  });
+});
+
+describe("GET /api/wishlists/wishlist/check/destination", () => {
+  let userToken: string;
+  let testUserId: string;
+  let testWishlistId: string;
+  let testDestinationId: string;
+
+  beforeAll(async () => {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    // 🔹 Buat user pemilik wishlist
+    testUserId = "user_test_check";
+    await prisma.user.create({
+      data: {
+        user_id: testUserId,
+        name: "Test User",
+        email: "testuser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat wishlist milik testUserId
+    testWishlistId = `wishlist-${testUserId}-check`;
+    await prisma.wishlist.create({
+      data: {
+        id: testWishlistId,
+        user_id: testUserId,
+        wishlist_name: "Wishlist Test",
+      },
+    });
+
+    // 🔹 Buat destinasi dummy
+    testDestinationId = "dest_check_123";
+    await prisma.destination.create({
+      data: {
+        destination_id: testDestinationId,
+        name: "Destinasi Test",
+        country: "Indonesia",
+        city: "Jakarta",
+        latitude: -6.2088,
+        longitude: 106.8456,
+        description: "Deskripsi destinasi test",
+      },
+    });
+
+    // 🔹 Tambahkan destinasi ke wishlist
+    await prisma.wishlistDestination.create({
+      data: {
+        wishlist_id: testWishlistId,
+        destination_id: testDestinationId,
+      },
+    });
+
+    // 🔹 Generate token JWT
+    userToken = jwt.sign(
+      { user_id: testUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+  });
+
+  afterAll(async () => {
+    await prisma.wishlistDestination.deleteMany();
+    await prisma.destination.deleteMany();
+    await prisma.wishlist.deleteMany();
+    await prisma.user.deleteMany();
+  });
+
+  // ✅ Berhasil menemukan destinasi dalam wishlist
+  it("✅ Harus berhasil menemukan destinasi dalam wishlist", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/check/destination`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .query({ wishlist_id: testWishlistId, destination_id: testDestinationId })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Destinasi ada dalam wishlist.");
+    expect(res.body.data.exists).toBe(true);
+  });
+
+  // ❌ Gagal jika destinasi tidak ada dalam wishlist
+  it("❌ Harus gagal jika destinasi tidak ditemukan dalam wishlist", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/check/destination`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .query({ wishlist_id: testWishlistId, destination_id: "dest_invalid" })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Destinasi tidak ditemukan dalam wishlist.");
+    expect(res.body.data.exists).toBe(false);
+  });
+
+  // ❌ Gagal jika `wishlist_id` atau `destination_id` tidak dikirim
+  it("❌ Harus gagal jika `wishlist_id` tidak dikirim", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/check/destination`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .query({ destination_id: testDestinationId }) // Tidak mengirimkan `wishlist_id`
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe(
+      "Wishlist ID dan Destination ID wajib diisi."
+    );
+  });
+
+  it("❌ Harus gagal jika `destination_id` tidak dikirim", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/check/destination`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .query({ wishlist_id: testWishlistId }) // Tidak mengirimkan `destination_id`
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe(
+      "Wishlist ID dan Destination ID wajib diisi."
+    );
+  });
+
+  // ❌ Gagal dengan server error (500 Internal Server Error)
+  it("❌ Harus gagal dengan server error (500) jika terjadi kesalahan di server", async () => {
+    // 🔹 Mock Prisma supaya selalu melempar error saat `findFirst`
+    const mocktest = jest
+      .spyOn(WishlistModel, "checkDestinationInWishlist")
+      .mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/check/destination`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .query({ wishlist_id: testWishlistId, destination_id: testDestinationId })
+      .expect(500);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Gagal mengecek destinasi dalam wishlist.");
+    expect(res.body.error).toBe("Database error");
+
+    // 🔹 Kembalikan fungsi Prisma ke normal setelah test selesai
+    mocktest.mockRestore();
+  });
+});
+
+describe("GET /api/wishlists/wishlist/:id/destinations", () => {
+  let userToken: string;
+  let testUserId: string;
+  let testWishlistId: string;
+  let testDestinationId1: string;
+  let testDestinationId2: string;
+
+  beforeAll(async () => {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    // 🔹 Buat user pemilik wishlist
+    testUserId = "user_test_destinations";
+    await prisma.user.create({
+      data: {
+        user_id: testUserId,
+        name: "Test User",
+        email: "testuser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat wishlist milik testUserId
+    testWishlistId = `wishlist-${testUserId}-destinations`;
+    await prisma.wishlist.create({
+      data: {
+        id: testWishlistId,
+        user_id: testUserId,
+        wishlist_name: "Wishlist Test Destinations",
+      },
+    });
+
+    // 🔹 Buat destinasi dummy
+    testDestinationId1 = "dest_001";
+    testDestinationId2 = "dest_002";
+
+    await prisma.destination.createMany({
+      data: [
+        {
+          destination_id: testDestinationId1,
+          name: "Bali",
+          country: "Indonesia",
+          city: "Denpasar",
+          latitude: -8.4095,
+          longitude: 115.1889,
+          description: "Pantai dan budaya Bali",
+        },
+        {
+          destination_id: testDestinationId2,
+          name: "Yogyakarta",
+          country: "Indonesia",
+          city: "Yogyakarta",
+          latitude: -7.7956,
+          longitude: 110.3695,
+          description: "Kota budaya dengan Candi Borobudur",
+        },
+      ],
+    });
+
+    // 🔹 Tambahkan destinasi ke wishlist
+    await prisma.wishlistDestination.createMany({
+      data: [
+        { wishlist_id: testWishlistId, destination_id: testDestinationId1 },
+        { wishlist_id: testWishlistId, destination_id: testDestinationId2 },
+      ],
+    });
+
+    // 🔹 Generate token JWT
+    userToken = jwt.sign(
+      { user_id: testUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+  });
+
+  afterAll(async () => {
+    await prisma.wishlistDestination.deleteMany();
+    await prisma.destination.deleteMany();
+    await prisma.wishlist.deleteMany();
+    await prisma.user.deleteMany();
+  });
+
+  // ✅ Test sukses mendapatkan daftar destinasi dalam wishlist
+  it("✅ Harus berhasil mendapatkan daftar destinasi dalam wishlist", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/${testWishlistId}/destinations`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveLength(2);
+    expect(res.body.data[0].destination.name).toBe("Bali");
+    expect(res.body.data[1].destination.name).toBe("Yogyakarta");
+  });
+
+  // ✅ Test sukses tetapi wishlist kosong
+  it("✅ Harus mengembalikan daftar kosong jika wishlist tidak memiliki destinasi", async () => {
+    const emptyWishlistId = `wishlist-${testUserId}-empty`;
+    await prisma.wishlist.create({
+      data: {
+        id: emptyWishlistId,
+        user_id: testUserId,
+        wishlist_name: "Empty Wishlist",
+      },
+    });
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/${emptyWishlistId}/destinations`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([]);
+  });
+
+  // ❌ Test gagal jika wishlist tidak ditemukan
+  it("❌ Harus mengembalikan 404 jika wishlist tidak ditemukan", async () => {
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/non-existent-wishlist/destinations`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(404);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Wishlist tidak ditemukan.");
+  });
+
+  // ❌ Test gagal jika terjadi error server
+  it("❌ Harus mengembalikan 500 jika terjadi error server", async () => {
+    const mocktest = jest
+      .spyOn(WishlistModel, "getWishlistDestinations")
+      .mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app)
+      .get(`/api/wishlists/wishlist/${testWishlistId}/destinations`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(500);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe(
+      "Gagal mengambil daftar destinasi dalam wishlist."
+    );
+    expect(res.body.error).toBe("Database error");
+
+    mocktest.mockRestore();
+  });
+});
+
+describe("DELETE /api/wishlists/wishlist/user/:user_id", () => {
+  let userToken: string;
+  let adminToken: string;
+  let testUserId: string;
+  let adminUserId: string;
+  let testWishlistId: string;
+
+  beforeAll(async () => {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    // 🔹 Buat user biasa
+    testUserId = "user_test_delete";
+    await prisma.user.create({
+      data: {
+        user_id: testUserId,
+        name: "Test User",
+        email: "testuser@example.com",
+        password_hash: hashedPassword,
+        role: "USER",
+      },
+    });
+
+    // 🔹 Buat user dengan role ADMIN
+    adminUserId = "admin_test_delete";
+    await prisma.user.create({
+      data: {
+        user_id: adminUserId,
+        name: "Admin User",
+        email: "admin@example.com",
+        password_hash: hashedPassword,
+        role: "ADMIN",
+      },
+    });
+
+    // 🔹 Generate token JWT
+    userToken = jwt.sign(
+      { user_id: testUserId, role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    adminToken = jwt.sign(
+      { user_id: adminUserId, role: "ADMIN" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+  });
+
+  beforeEach(async () => {
+    // 🔹 Pastikan database dalam keadaan bersih
+    await prisma.wishlist.deleteMany();
+
+    // 🔹 Buat wishlist dummy untuk user
+    testWishlistId = `wishlist-${testUserId}-delete`;
+    await prisma.wishlist.create({
+      data: {
+        id: testWishlistId,
+        user_id: testUserId,
+        wishlist_name: "Wishlist Test",
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await prisma.wishlist.deleteMany();
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany();
+  });
+
+  // ✅ Berhasil menghapus wishlist jika pemiliknya sendiri
+  it("✅ Harus berhasil menghapus semua wishlist jika pemiliknya sendiri", async () => {
+    const res = await request(app)
+      .delete(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe(
+      "Semua wishlist milik user berhasil dihapus."
+    );
+  });
+
+  // ✅ Berhasil menghapus wishlist jika user adalah ADMIN
+  it("✅ Harus berhasil menghapus semua wishlist jika user adalah ADMIN", async () => {
+    const res = await request(app)
+      .delete(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe(
+      "Semua wishlist milik user berhasil dihapus."
+    );
+  });
+
+  // ❌ Harus gagal dengan status 403 jika user lain mencoba menghapus
+  it("❌ Harus gagal dengan status 403 jika user lain mencoba menghapus", async () => {
+    const otherUserToken = jwt.sign(
+      { user_id: "random_other_user", role: "USER" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    const res = await request(app)
+      .delete(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${otherUserToken}`)
+      .expect(403);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe(
+      "Anda tidak memiliki izin untuk menghapus wishlist ini."
+    );
+  });
+
+  // ❌ Harus gagal dengan status 404 jika user tidak memiliki wishlist
+  it("❌ Harus gagal dengan status 404 jika user tidak memiliki wishlist", async () => {
+    // 🔹 Hapus semua wishlist sebelum menjalankan test ini
+    await prisma.wishlist.deleteMany();
+
+    const res = await request(app)
+      .delete(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(404);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Wishlist tidak ditemukan.");
+  });
+
+  // ❌ Harus mengembalikan 500 jika terjadi error server
+  it("❌ Harus mengembalikan 500 jika terjadi error server", async () => {
+    const mocktest = jest
+      .spyOn(WishlistModel, "deleteAllWishlistsByUser")
+      .mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app)
+      .delete(`/api/wishlists/wishlist/user/${testUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(500);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Gagal menghapus semua wishlist milik user.");
+
+    mocktest.mockRestore();
+  });
 });

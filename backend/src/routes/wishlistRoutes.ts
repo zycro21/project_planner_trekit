@@ -32,26 +32,28 @@ router.delete("/wishlist/:id", authenticateUser, WishlistController.deleteWishli
 router.get("/wishlists", authenticateUser, WishlistController.getAllWishlists);
 
 // 📌 GET Wishlist berdasarkan ID
-router.get("/wishlist/:id", WishlistController.getWishlistById);
+router.get("/wishlist/:id", authenticateUser, WishlistController.getWishlistById);
 
 // 📌 GET Wishlist berdasarkan User ID
-router.get("/wishlist/user/:user_id", WishlistController.getWishlistsByUser);
+router.get("/wishlist/user/:user_id", authenticateUser, WishlistController.getWishlistsByUser);
 
 // 📌 Update nama wishlist
-router.patch("/wishlist/:id", WishlistController.updateWishlistName);
+router.put("/wishlist/:id", authenticateUser, WishlistController.updateWishlistName);
 
 // 📌 Cek apakah destinasi ada di wishlist
-router.get("/wishlist/check", WishlistController.checkDestinationInWishlist);
+router.get("/wishlist/check/destination", authenticateUser, WishlistController.checkDestinationInWishlist);
 
 // 📌 GET Semua Destinasi dalam Wishlist
 router.get(
   "/wishlist/:id/destinations",
+  authenticateUser,
   WishlistController.getWishlistDestinations
 );
 
 // 📌 Hapus semua wishlist milik user
 router.delete(
   "/wishlist/user/:user_id",
+  authenticateUser,
   WishlistController.deleteAllWishlistsByUser
 );
 
