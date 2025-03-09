@@ -1,3 +1,7 @@
+import "./styles/globals.css";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 export default function RootLayout({
   children,
 }: {
@@ -5,7 +9,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body>
+        {/* Toaster untuk notifikasi */}
+        <ToastContainer position="top-right" autoClose={5000} /> 
+        {children}
+      </body>
     </html>
   );
 }

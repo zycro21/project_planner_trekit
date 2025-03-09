@@ -11,6 +11,7 @@ import {
   updatePassword,
   forgotPassword,
   resetPassword,
+  checkVerification,
 } from "../controller/userController";
 import {
   authenticateUser,
@@ -26,6 +27,7 @@ router.post("/login", loginUser); // Login User
 router.post("/forgot-password", forgotPassword); // Lupa Password
 router.post("/reset-password", resetPassword); // Reset Password
 router.get("/verify-email/:token", verifyEmail); // Verifikasi Email
+router.post("/check-verification", checkVerification);
 router.post("/resend-verification", resendVerificationEmail); // Kirim Ulang Verifikasi Email
 
 // Protected Routes (Butuh Login)

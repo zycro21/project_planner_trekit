@@ -78,7 +78,8 @@ const sendVerificationEmail = async (email: string, token: string) => {
     },
   });
 
-  const verifyUrl = `${process.env.BASE_URL}/api/users/verify-email/${token}`;
+  const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+  
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
@@ -180,6 +181,28 @@ const verifyEmail = async (req: Request, res: Response) => {
     await UserModel.verifyUserEmail(user.user_id);
     res.status(200).json({
       message: "Email berhasil diverifikasi. Anda bisa login sekarang.",
+    });
+    return;
+  } catch (error) {
+    res.status(500).json({ message: "Terjadi kesalahan.", error });
+    return;
+  }
+};
+
+const checkVerification = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const user = await UserModel.findByEmail(email);
+
+    if (!user) {
+      res.status(404).json({
+        message: "User Tidak Dapat Ditemukan",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      is_verified: user.is_verified,
     });
     return;
   } catch (error) {
@@ -579,4 +602,5 @@ export {
   updatePassword,
   forgotPassword,
   resetPassword,
+  checkVerification,
 };
