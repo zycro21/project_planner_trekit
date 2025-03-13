@@ -12,6 +12,7 @@ import {
   forgotPassword,
   resetPassword,
   checkVerification,
+  logoutUser
 } from "../controller/userController";
 import {
   authenticateUser,
@@ -29,6 +30,7 @@ router.post("/reset-password", resetPassword); // Reset Password
 router.get("/verify-email/:token", verifyEmail); // Verifikasi Email
 router.post("/check-verification", checkVerification);
 router.post("/resend-verification", resendVerificationEmail); // Kirim Ulang Verifikasi Email
+router.post("/logout", logoutUser);
 
 // Protected Routes (Butuh Login)
 router.get("/getUsers", authenticateUser, authorizeAdmin, getUsers); // Get All Users

@@ -79,7 +79,7 @@ const sendVerificationEmail = async (email: string, token: string) => {
   });
 
   const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
-  
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
@@ -590,6 +590,19 @@ const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
+const logoutUser = (req: Request, res: Response) => {
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    res.status(200).json({ message: "Logout berhasil" });
+  } catch (error) {
+    res.status(500).json({ message: "Terjadi kesalahan server", error });
+  }
+};
+
 export {
   registerUser,
   getUsers,
@@ -603,4 +616,5 @@ export {
   forgotPassword,
   resetPassword,
   checkVerification,
+  logoutUser
 };
