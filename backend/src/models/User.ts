@@ -58,7 +58,7 @@ export class UserModel {
         user_id: sort === "DESC" ? "desc" : "asc", // Sorting berdasarkan user_id
       },
       select: {
-        user_id: true,
+        user_id: true,  
         name: true,
         email: true,
         role: true,

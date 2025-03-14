@@ -305,7 +305,7 @@ const loginUser = async (req: Request, res: Response) => {
       httpOnly: true, // Tidak bisa diakses JavaScript (aman dari XSS)
       secure: process.env.NODE_ENV === "production", // Hanya aktif di HTTPS saat production
       sameSite: "strict", // Melindungi dari CSRF
-      maxAge: 60 * 60 * 12000, // Expire dalam 1 jam
+      maxAge: 60 * 60 * 12000, // Expire dalam 12 jam
     });
 
     // Kirim respons sukses

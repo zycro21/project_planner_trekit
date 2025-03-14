@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus, FaSortUp, FaSortDown } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -18,8 +18,13 @@ interface User {
 
 export default function UserPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<"ASC" | "DESC" | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [isHovered, setIsHovered] = useState(false); // Untuk tombol plus
   const [isModalCreateOpen, setIsModalCreateOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -49,15 +54,43 @@ export default function UserPage() {
       const response = await axios.get(
         "http://localhost:5000/api/users/getUsers",
         {
+          params: {
+            search: searchTerm || undefined,
+            sort: sortOrder,
+          },
           withCredentials: true,
         }
       );
-      console.log("Fetched Users:", response.data);
+
       setUsers(response.data);
     } catch (err) {
       setError("Gagal mengambil data pengguna.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fungsi Handle untuk Search
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // Fungsi Handler untuk Sorting
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Jika sudah diurutkan ASC, ubah ke DESC
+      if (sortOrder === "ASC") {
+        setSortOrder("DESC");
+      }
+      // Jika sudah diurutkan DESC, reset ke default (tanpa ikon)
+      else if (sortOrder === "DESC") {
+        setSortField(null);
+        setSortOrder(null);
+      }
+    } else {
+      // Jika field berbeda, mulai dari ASC
+      setSortField(field);
+      setSortOrder("ASC");
     }
   };
 
@@ -188,44 +221,52 @@ export default function UserPage() {
   useEffect(() => {
     fetchUsers();
     fetchLoggedInUser();
-  }, []);
+  }, [searchTerm, sortField, sortOrder]);
 
   return (
-    <div className="p-6">
+    <div className="p-6 pt-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">User Management</h1>
 
-        {/* Tombol Create User dengan Animasi */}
-        <motion.button
-          className="flex items-center justify-center bg-blue-600 text-white py-2 px-3 rounded-md transition-all overflow-hidden"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          initial={{ width: "40px" }}
-          animate={{ width: isHovered ? "120px" : "40px" }}
-          transition={{ duration: 0.3 }}
-          onClick={() => setIsModalCreateOpen(true)}
-        >
-          {/* Icon + */}
-          <motion.div
-            initial={{ scale: 1 }}
-            animate={{ scale: isHovered ? 0.9 : 1 }}
-            transition={{ duration: 0.2 }}
-          >
-            <FaPlus className="text-xl" />
-          </motion.div>
+        <div className="flex justify-between items-center mb-4 gap-4">
+          {/* Input Search */}
+          <input
+            type="text"
+            placeholder="Search user..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            className="border p-2 rounded-md w-60"
+          />
 
-          {/* Teks "Create User" */}
-          <motion.span
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : -10 }}
-            transition={{ duration: 0.2 }}
-            className={`ml-2 text-sm ${isHovered ? "block" : "hidden"}`}
+          {/* Tombol Create User */}
+          <motion.button
+            className="flex items-center justify-center bg-blue-600 text-white py-2 px-3 rounded-md transition-all overflow-hidden"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ width: "40px" }}
+            animate={{ width: isHovered ? "120px" : "40px" }}
+            transition={{ duration: 0.3 }}
+            onClick={() => setIsModalCreateOpen(true)}
           >
-            Create User
-          </motion.span>
-        </motion.button>
+            <motion.div
+              initial={{ scale: 1 }}
+              animate={{ scale: isHovered ? 0.9 : 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <FaPlus className="text-xl" />
+            </motion.div>
+            <motion.span
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : -10 }}
+              transition={{ duration: 0.2 }}
+              className={`ml-2 text-sm ${isHovered ? "block" : "hidden"}`}
+            >
+              Create User
+            </motion.span>
+          </motion.button>
+        </div>
       </div>
 
       {loading && <p>Loading...</p>}
@@ -235,11 +276,29 @@ export default function UserPage() {
         <table className="w-full bg-white shadow-md rounded-lg overflow-hidden">
           <thead className="bg-blue-900 text-white">
             <tr>
-              <th className="py-3 px-4 text-left">ID</th>
-              <th className="py-3 px-4 text-left">Name</th>
-              <th className="py-3 px-4 text-left">Email</th>
-              <th className="py-3 px-4 text-left">Role</th>
-              <th className="py-3 px-4 text-left">Created</th>
+              {[
+                { key: "user_id", label: "ID" },
+                { key: "name", label: "Name" },
+                { key: "email", label: "Email" },
+                { key: "role", label: "Role" },
+                { key: "created_at", label: "Created" },
+              ].map(({ key, label }) => (
+                <th
+                  key={key}
+                  className="py-3 px-4 text-left cursor-pointer select-none"
+                  onClick={() => handleSort(key)}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortField === key &&
+                      (sortOrder === "ASC" ? (
+                        <FaSortDown />
+                      ) : sortOrder === "DESC" ? (
+                        <FaSortUp />
+                      ) : null)}
+                  </span>
+                </th>
+              ))}
               <th className="py-3 px-4 text-left">Verified?</th>
               <th className="py-3 px-4 text-center">Actions</th>
             </tr>
