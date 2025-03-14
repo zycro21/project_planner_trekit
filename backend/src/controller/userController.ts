@@ -603,6 +603,38 @@ const logoutUser = (req: Request, res: Response) => {
   }
 };
 
+const getLoggedInUser = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.user_id; // Ambil user_id dari middleware
+
+    if (!userId) {
+      res.status(401).json({ message: "Anda belum login." });
+      return;
+    }
+
+    // Ambil data user berdasarkan user_id
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: {
+        user_id: true,
+        name: true,
+        email: true,
+        role: true,
+        created_at: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ message: "User tidak ditemukan." });
+      return;
+    }
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Terjadi kesalahan server", error });
+  }
+};
+
 export {
   registerUser,
   getUsers,
@@ -616,5 +648,6 @@ export {
   forgotPassword,
   resetPassword,
   checkVerification,
-  logoutUser
+  getLoggedInUser,
+  logoutUser,
 };

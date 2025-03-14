@@ -46,7 +46,7 @@ export class UserModel {
     search?: string;
     email?: string;
   }): Promise<
-    Pick<Users, "user_id" | "name" | "email" | "role" | "created_at">[]
+    Pick<Users, "user_id" | "name" | "email" | "role" | "created_at" | "is_verified">[]
   > {
     return await prisma.user.findMany({
       where: {
@@ -63,6 +63,7 @@ export class UserModel {
         email: true,
         role: true,
         created_at: true,
+        is_verified: true,
       },
     });
   }
@@ -157,7 +158,7 @@ export class UserModel {
     });
   }
 
-  // Update Password (Hanya untuk dirinya sendiri)
+  // Update Password
   static async updatePassword(
     user_id: string,
     newPassword: string

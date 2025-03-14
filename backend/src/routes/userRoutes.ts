@@ -12,6 +12,7 @@ import {
   forgotPassword,
   resetPassword,
   checkVerification,
+  getLoggedInUser,
   logoutUser
 } from "../controller/userController";
 import {
@@ -34,6 +35,7 @@ router.post("/logout", logoutUser);
 
 // Protected Routes (Butuh Login)
 router.get("/getUsers", authenticateUser, authorizeAdmin, getUsers); // Get All Users
+router.get("/me", authenticateUser, getLoggedInUser);
 router.get("/:user_id", authenticateUser, getUserById); // Get User By ID
 router.put("/:user_id", authenticateUser, updateUser); // Update User
 router.delete("/:user_id", authenticateUser, authorizeAdmin, deleteUser); // Delete User
