@@ -23,6 +23,6 @@ router.post("/destinations", authenticateUser, uploadImages, createDestination);
 
 // Route untuk update destinasi (termasuk update gambar jika ada)
 router.put("/destinations/:id", authenticateUser, uploadImages, updateDestination);
-router.delete("/destinations/:id", authenticateUser, deleteDestination);
+router.delete("/destinations/:id", authenticateUser, authorizeAdmin, deleteDestination);
 
 export default router;

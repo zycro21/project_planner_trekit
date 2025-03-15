@@ -14,12 +14,12 @@ const App: Express = express();
 App.use(cors);
 App.use(cookieParser());
 App.use(express.json());
-App.use(express.urlencoded({ extended: true}));
+App.use(express.urlencoded({ extended: true }));
 
 // Routing Placeholder
 // Testing
-App.get('/', (req: Request, res: Response) => {
-    res.send('Welcome to this API!');
+App.get("/", (req: Request, res: Response) => {
+  res.send("Welcome to this API!");
 });
 
 App.use("/api/users", userRoutes);
@@ -28,6 +28,10 @@ App.use("/api/itineraries", itineraryRoutes);
 App.use("/api/reviews", reviewRoutes);
 App.use("/api/wishlists", wishlistRoutes);
 
-App.use("/images", express.static(path.resolve(__dirname, "../destination_image_save")));
+const imagePath = path.resolve(__dirname, "../src/destination_image_save");
+console.log("Serving images from:", imagePath);
+
+App.use("/images", express.static(imagePath));
+
 
 export default App;

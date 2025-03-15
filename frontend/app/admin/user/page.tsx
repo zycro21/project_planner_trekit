@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaPlus, FaSortUp, FaSortDown } from "react-icons/fa";
+import { FaPlus, FaSortUp, FaSortDown, FaTrash, FaEdit } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -330,19 +330,19 @@ export default function UserPage() {
                 <td className="py-2 px-4 text-center">
                   <div className="flex flex-wrap justify-center gap-2">
                     <button
-                      className="bg-blue-500 text-white px-3 py-1 rounded"
+                      className="bg-yellow-100 text-gray-700 hover:bg-yellow-200 px-3 py-1 rounded"
                       onClick={() => openEditModal(user)}
                     >
-                      Edit
+                      <FaEdit />
                     </button>
                     <button
-                      className="bg-red-600 text-white px-3 py-1 rounded"
+                      className="bg-red-100 text-gray-700 hover:bg-red-200 px-3 py-1 rounded"
                       onClick={() => {
                         setSelectedUserId(user.user_id);
                         setIsModalDeleteOpen(true);
                       }}
                     >
-                      Delete
+                      <FaTrash />
                     </button>
                   </div>
                 </td>

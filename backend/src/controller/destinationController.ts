@@ -148,7 +148,7 @@ export const updateDestination = async (req: Request, res: Response) => {
     }
 
     // Cek apakah destinasi ada di database
-    const existingData = await DestinationModel.findById(id, true);
+    const existingData = await DestinationModel.findById(id);
     if (!existingData) {
       res.status(404).json({ message: "Destinasi tidak ditemukan" });
       return;
@@ -199,7 +199,7 @@ export const deleteDestination = async (req: Request, res: Response) => {
 
   try {
     // Cek apakah destinasi ada & ambil juga gambar terkait
-    const existingData = await DestinationModel.findById(id, true);
+    const existingData = await DestinationModel.findById(id);
     if (!existingData) {
       res.status(404).json({ message: "Destinasi tidak ditemukan" });
       return;

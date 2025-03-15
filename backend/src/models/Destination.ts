@@ -65,15 +65,19 @@ export class DestinationModel {
 
   // Get single destination by ID dengan opsi relasi
   static async findById(
-    destination_id: string,
-    includeImages: boolean = false
+    destination_id: string
   ): Promise<DestinationWithImages | null> {
-    if (!destination_id || typeof destination_id !== "string") return null; // Cek validitas ID
+    if (!destination_id || typeof destination_id !== "string") return null;
 
     return (await prisma.destination.findUnique({
       where: { destination_id },
-      include: includeImages ? { images: true } : undefined, // Ambil images jika diminta
-    })) as DestinationWithImages | null; // Paksa TypeScript mengenali `images`
+      include: {
+        images: true,
+        itinerary_destinations: true,
+        reviews: true,
+        wishlist_destinations: true,
+      },
+    })) as DestinationWithImages | null;
   }
 
   // Fungsi Generate ID
@@ -129,22 +133,29 @@ export class DestinationModel {
           latitude: data.latitude,
           longitude: data.longitude,
           description: data.description,
-          images: {
-            create:
-              data.images?.map((image) => ({
-                image_url: image,
-                destination_id,
-              })) || [],
-          },
         },
+      });
+
+      if (data.images && data.images.length > 0) {
+        await prisma.destinationImage.createMany({
+          data: data.images.map((image) => ({
+            image_url: `/images/${image}`,
+            destination_id: newDestination.destination_id,
+          })),
+        });
+      }
+
+      // Ambil kembali data dengan relasi
+      const savedDestination = await prisma.destination.findUnique({
+        where: { destination_id },
         include: { images: true },
       });
 
-      return newDestination;
+      return savedDestination;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === "P2002") {
-          throw new Error("DUPLICATE_DESTINATION"); 
+          throw new Error("DUPLICATE_DESTINATION");
         }
       }
       console.error("Error saat menyimpan destinasi ke database:", error);
