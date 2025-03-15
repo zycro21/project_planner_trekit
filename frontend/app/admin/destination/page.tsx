@@ -77,14 +77,10 @@ export default function DestinationPage() {
 
   // State untuk Edit
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editData, setEditData] = useState({
-    destination_id: "",
-    name: "",
-    latitude: "",
-    longitude: "",
-    description: "",
-    images: [] as File[], // Gambar baru yang dipilih
-  });
+  const [selectedEditDestination, setSelectedEditDestination] =
+    useState<Destination | null>(null);
+  // State untuk menyimpan gambar baru yang akan diunggah
+  const [newEditImages, setNewEditImages] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]); // Gambar lama
   const [imagePreviewsEdit, setImagePreviewsEdit] = useState<string[]>([]); // Preview gambar baru
 
@@ -195,6 +191,141 @@ export default function DestinationPage() {
     }
   };
 
+  // Fungsi Buka Modal Edit
+  const handleEditClick = async (destination: Destination) => {
+    console.log("🟡 Edit button clicked!", destination);
+
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/api/destinations/destinations/${destination.destination_id}`,
+        { withCredentials: true }
+      );
+      const fullDestination = response.data; // Data lengkap dari API Detail
+
+      console.log("📂 Full Destination Data:", fullDestination);
+      setSelectedEditDestination(fullDestination);
+
+      if (fullDestination.images && Array.isArray(fullDestination.images)) {
+        const oldImages = fullDestination.images.map(
+          (img: DestinationImage) => img.image_url
+        );
+        console.log("📸 Existing Images:", oldImages);
+        setExistingImages(oldImages);
+      } else {
+        console.warn("⚠️ Tidak ada gambar lama!", fullDestination.images);
+        setExistingImages([]);
+      }
+
+      setImagePreviewsEdit([]);
+      setIsEditModalOpen(true);
+    } catch (error) {
+      console.error("❌ Gagal mengambil detail destinasi:", error);
+    }
+  };
+
+  // Fungsi Handle Input Perubahan di Form Edit
+  const handleEditChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    if (!selectedEditDestination) return;
+
+    const { name, value } = e.target;
+    setSelectedEditDestination((prev) =>
+      prev ? { ...prev, [name]: value } : null
+    );
+  };
+
+  // ✅ Fungsi Handle Upload Gambar Baru
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+
+    const files = Array.from(e.target.files);
+    setNewEditImages(files);
+
+    // Generate Preview Gambar
+    const previews = files.map((file) => URL.createObjectURL(file));
+    setImagePreviewsEdit(previews);
+  };
+
+  const handleUpdateDestination = async () => {
+    if (!selectedEditDestination) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("name", selectedEditDestination.name);
+      formData.append("latitude", selectedEditDestination.latitude.toString());
+      formData.append(
+        "longitude",
+        selectedEditDestination.longitude.toString()
+      );
+      formData.append("description", selectedEditDestination.description);
+
+      console.log("🟡 selectedEditDestination:", selectedEditDestination);
+
+      // Tambah gambar baru jika ada
+      newEditImages.forEach((image) => {
+        formData.append("images", image);
+      });
+
+      // 🔍 Debug: Cek isi FormData sebelum dikirim
+      console.log("📤 Data yang dikirim ke backend:");
+      formData.forEach((value, key) => {
+        console.log(`${key}:`, value);
+      });
+
+      await axios.put(
+        `http://localhost:5000/api/destinations/destinations/${selectedEditDestination.destination_id}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          withCredentials: true,
+        }
+      );
+
+      // Update data di tabel tanpa refresh
+      setDestinations((prev) =>
+        prev.map((dest) =>
+          dest.destination_id === selectedEditDestination.destination_id
+            ? {
+                ...dest,
+                ...selectedEditDestination,
+                latitude:
+                  parseFloat(selectedEditDestination.latitude.toString()) || 0,
+                longitude:
+                  parseFloat(selectedEditDestination.longitude.toString()) || 0,
+                images: [
+                  ...existingImages.map((url) => ({
+                    image_id: "",
+                    image_url: url,
+                  })),
+                  ...imagePreviewsEdit.map((url) => ({
+                    image_id: "",
+                    image_url: url,
+                  })),
+                ],
+              }
+            : dest
+        )
+      );
+
+      setIsEditModalOpen(false);
+      toast.success("Destinasi berhasil diperbarui!");
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error(
+          "❌ Gagal memperbarui destinasi:",
+          error.response?.data || error.message
+        );
+        toast.error(
+          `Gagal: ${error.response?.data?.message || "Terjadi kesalahan"}`
+        );
+      } else {
+        console.error("❌ Error tidak terduga:", error);
+        toast.error("Error tidak terduga");
+      }
+    }
+  };
+
   const handleDeleteClick = (id: string) => {
     setDeleteSelectedDestinationId(id);
     setIsDeleteModalOpen(true);
@@ -302,36 +433,45 @@ export default function DestinationPage() {
                 </td>
               </tr>
             ) : (
-              destinations.map((destination, index) => (
-                <tr key={destination.destination_id} className="border-b">
-                  <td className="py-3 px-4">{index + 1}</td>
-                  <td className="py-3 px-4">{destination.destination_id}</td>
-                  <td className="py-3 px-4">{destination.name}</td>
-                  <td className="py-3 px-4">{destination.country}</td>
-                  <td className="py-3 px-4">{destination.city}</td>
-                  <td className="py-3 px-4 text-center flex justify-center gap-2">
-                    <button
-                      className="bg-blue-100 text-gray-700 hover:bg-blue-200 p-2 rounded"
-                      onClick={() =>
-                        fetchDestinationDetail(destination.destination_id)
-                      }
-                    >
-                      <FaEye />
-                    </button>
-                    <button className="bg-yellow-100 text-gray-700 hover:bg-yellow-200 p-2 rounded">
-                      <FaEdit />
-                    </button>
-                    <button
-                      className="bg-red-100 text-gray-700 hover:bg-red-200 p-2 rounded"
-                      onClick={() =>
-                        handleDeleteClick(destination.destination_id)
-                      }
-                    >
-                      <FaTrash />
-                    </button>
-                  </td>
-                </tr>
-              ))
+              destinations.map((destination, index) => {
+                return (
+                  <tr key={destination.destination_id} className="border-b">
+                    <td className="py-3 px-4">{index + 1}</td>
+                    <td className="py-3 px-4">{destination.destination_id}</td>
+                    <td className="py-3 px-4">{destination.name}</td>
+                    <td className="py-3 px-4">{destination.country}</td>
+                    <td className="py-3 px-4">{destination.city}</td>
+                    <td className="py-3 px-4 text-center flex justify-center gap-2">
+                      <button
+                        className="bg-blue-100 text-gray-700 hover:bg-blue-200 p-2 rounded"
+                        onClick={() => {
+                          console.log("Detail button clicked!");
+                          fetchDestinationDetail(destination.destination_id);
+                        }}
+                      >
+                        <FaEye />
+                      </button>
+                      <button
+                        className="bg-yellow-100 text-gray-700 hover:bg-yellow-200 p-2 rounded"
+                        onClick={() => {
+                          console.log("Edit button clicked!", destination);
+                          handleEditClick(destination);
+                        }}
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        className="bg-red-100 text-gray-700 hover:bg-red-200 p-2 rounded"
+                        onClick={() =>
+                          handleDeleteClick(destination.destination_id)
+                        }
+                      >
+                        <FaTrash />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -520,7 +660,6 @@ export default function DestinationPage() {
       </AnimatePresence>
 
       {/* Modal Detail */}
-
       <AnimatePresence>
         {isDetailModalOpen && selectedDestination && (
           <motion.div
@@ -665,6 +804,130 @@ export default function DestinationPage() {
                   )}
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Edit */}
+      <AnimatePresence>
+        {isEditModalOpen && selectedEditDestination && (
+          <motion.div
+            className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white p-6 rounded-lg shadow-lg w-96"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Edit Destination</h2>
+                <button onClick={() => setIsEditModalOpen(false)}>
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium">Nama</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={selectedEditDestination.name ?? ""}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+
+                <label className="block text-sm font-medium mt-3">
+                  Latitude
+                </label>
+                <input
+                  type="text"
+                  name="latitude"
+                  value={selectedEditDestination.latitude ?? ""}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+
+                <label className="block text-sm font-medium mt-3">
+                  Longitude
+                </label>
+                <input
+                  type="text"
+                  name="longitude"
+                  value={selectedEditDestination.longitude ?? ""}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+
+                <label className="block text-sm font-medium mt-3">
+                  Deskripsi
+                </label>
+                <textarea
+                  name="description"
+                  value={selectedEditDestination.description ?? ""}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded"
+                ></textarea>
+
+                <label className="block text-sm font-medium mt-3">
+                  Tambah Gambar
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleEditImageChange}
+                  className="w-full px-3 py-2 border rounded"
+                />
+
+                {/* Preview Gambar Baru */}
+                {imagePreviewsEdit.length > 0 && (
+                  <div className="mt-3 flex gap-2">
+                    {imagePreviewsEdit.map((src, index) => (
+                      <img
+                        key={index}
+                        src={src}
+                        alt="Preview"
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Gambar Lama */}
+                {existingImages.length > 0 && (
+                  <div className="mt-3 flex gap-2">
+                    {existingImages.map((src, index) => (
+                      <img
+                        key={index}
+                        src={`http://localhost:5000${src}`}
+                        alt="Existing"
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <button
+                  className="px-4 py-2 bg-gray-300 rounded mr-2"
+                  onClick={() => setIsEditModalOpen(false)}
+                >
+                  Batal
+                </button>
+                <motion.button
+                  className="px-4 py-2 bg-yellow-500 text-white rounded"
+                  onClick={handleUpdateDestination}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Simpan
+                </motion.button>
+              </div>
             </motion.div>
           </motion.div>
         )}

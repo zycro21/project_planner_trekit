@@ -177,7 +177,7 @@ export const updateDestination = async (req: Request, res: Response) => {
 
     // Proses gambar baru jika ada
     if (req.files && Array.isArray(req.files)) {
-      data.images = req.files.map((file) => file.filename);
+      data.images = req.files.map((file) => `/images/${file.filename}`);
     }
 
     // Update hanya kolom yang berubah
