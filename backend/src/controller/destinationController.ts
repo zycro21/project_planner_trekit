@@ -139,6 +139,16 @@ export const updateDestination = async (req: Request, res: Response) => {
     const { id } = req.params;
     const data = req.body;
 
+    // 🔄 Konversi deletedImages dari string JSON ke array jika perlu
+    if (typeof data.deletedImages === "string") {
+      try {
+        data.deletedImages = JSON.parse(data.deletedImages);
+      } catch (error) {
+        console.log("❌ Gagal parse deletedImages:", error);
+        data.deletedImages = [];
+      }
+    }
+
     // Validasi: Tidak boleh mengubah `destination_id`, `country`, atau `city`
     if ("destination_id" in data || "country" in data || "city" in data) {
       res.status(400).json({
@@ -175,7 +185,15 @@ export const updateDestination = async (req: Request, res: Response) => {
       }
     }
 
-    // Proses gambar baru jika ada
+    console.log("🔥 Gambar yang akan dihapus:", data.deletedImages);
+
+    if (data.deletedImages && Array.isArray(data.deletedImages)) {
+      await DestinationModel.deleteImages(id, data.deletedImages);
+    }
+
+    console.log("✅ Proses penghapusan gambar selesai");
+
+    // 🟢 Proses gambar baru jika ada
     if (req.files && Array.isArray(req.files)) {
       data.images = req.files.map((file) => `/images/${file.filename}`);
     }

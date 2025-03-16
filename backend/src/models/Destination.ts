@@ -15,6 +15,7 @@ interface DestinationUpdateInput {
   longitude?: number;
   description?: string;
   images?: string[]; // Array untuk multiple images
+  deletedImages?: string[];
 }
 
 // Tipe yang dikembalikan oleh fungsi
@@ -192,8 +193,7 @@ export class DestinationModel {
         });
       }
 
-      // Hapus `images` dari `data` sebelum menggunakannya dalam update
-      const { images, ...updatedData } = data;
+      const { images, deletedImages, ...updatedData } = data;
 
       // Pastikan hanya field yang diperbolehkan untuk diupdate
       const validUpdateFields =
@@ -202,10 +202,25 @@ export class DestinationModel {
       // Update data destinasi
       return await prisma.destination.update({
         where: { destination_id },
-        data: validUpdateFields, // Pastikan hanya kolom valid yang dikirim
-        include: { images: true }, // Ambil juga gambar setelah update
+        data: validUpdateFields,
+        include: { images: true },
       });
     });
+  }
+
+  // Hapus gambar berdasarkan daftar URL
+  static async deleteImages(destination_id: string, imageUrls: string[]) {
+    console.log("🚀 Deleting images:", imageUrls);
+
+    const deleteResult = await prisma.destinationImage.deleteMany({
+      where: {
+        destination_id,
+        image_url: { in: imageUrls },
+      },
+    });
+
+    console.log("✅ Hasil penghapusan gambar:", deleteResult);
+    return deleteResult;
   }
 
   // Delete destination by ID
