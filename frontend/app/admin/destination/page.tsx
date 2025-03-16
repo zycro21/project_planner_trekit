@@ -10,6 +10,8 @@ import {
   FaTrash,
   FaPlus,
   FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
 } from "react-icons/fa";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
@@ -54,6 +56,13 @@ export default function DestinationPage() {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchBy, setSearchBy] = useState<"name" | "country" | "city">("name");
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<"ASC" | "DESC" | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const limit = 10;
 
   // State untuk Create
   const [isModalCreateOpen, setIsModalCreateOpen] = useState(false);
@@ -95,18 +104,64 @@ export default function DestinationPage() {
 
   const fetchDestinations = async () => {
     try {
+      const params: any = {
+        sort: sortOrder || "ASC",
+        sortField: sortField || "name",
+        limit,
+        offset: (currentPage - 1) * limit,
+      };
+
+      // Hanya kirim parameter sesuai pilihan dropdown
+      if (searchQuery) {
+        if (searchBy === "name") {
+          params.search = searchQuery; // Ubah jadi "search"
+        } else {
+          params[searchBy] = searchQuery;
+        }
+      }
+
       const response = await axios.get(
         "http://localhost:5000/api/destinations/destinations",
         {
+          params,
           withCredentials: true,
         }
       );
 
       setDestinations(response.data.data);
+      setTotalPages(response.data.totalPages);
     } catch (err) {
       setError("Gagal mengambil data destinasi");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Jika sudah ASC, ubah ke DESC
+      if (sortOrder === "ASC") {
+        setSortOrder("DESC");
+      }
+      // Jika sudah DESC, reset ke default (tanpa ikon)
+      else if (sortOrder === "DESC") {
+        setSortField(null);
+        setSortOrder(null);
+      }
+    } else {
+      // Jika field berbeda, mulai dari ASC
+      setSortField(field);
+      setSortOrder("ASC");
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
     }
   };
 
@@ -378,41 +433,65 @@ export default function DestinationPage() {
 
   useEffect(() => {
     fetchDestinations();
-  }, []);
+  }, [searchQuery, currentPage, sortField, sortOrder]);
 
   return (
     <div className="p-6 pt-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Destination Management</h1>
 
-        {/* Tombol Create Destination */}
-        <motion.button
-          className="flex items-center justify-center bg-blue-600 text-white py-2 px-3 rounded-md transition-all overflow-hidden"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          initial={{ width: "40px" }}
-          animate={{ width: isHovered ? "150px" : "40px" }}
-          transition={{ duration: 0.3 }}
-          onClick={() => setIsModalCreateOpen(true)}
-        >
-          <motion.div
-            initial={{ scale: 1 }}
-            animate={{ scale: isHovered ? 0.9 : 1 }}
-            transition={{ duration: 0.2 }}
+        <div className="flex justify-between items-center mb-4 gap-4">
+          {/* Dropdown untuk memilih filter pencarian */}
+          <select
+            value={searchBy}
+            onChange={(e) =>
+              setSearchBy(e.target.value as "name" | "country" | "city")
+            }
+            className="border p-2 rounded-md"
           >
-            <FaPlus className="text-xl" />
-          </motion.div>
-          <motion.span
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : -10 }}
-            transition={{ duration: 0.2 }}
-            className={`ml-2 text-sm ${isHovered ? "block" : "hidden"}`}
+            <option value="name">Name</option>
+            <option value="country">Country</option>
+            <option value="city">City</option>
+          </select>
+
+          {/* Input Search */}
+          <input
+            type="text"
+            placeholder={`Search by ${searchBy}...`}
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="border p-2 rounded-md w-60"
+          />
+
+          {/* Tombol Create Destination */}
+          <motion.button
+            className="flex items-center justify-center bg-blue-600 text-white py-2 px-3 rounded-md transition-all overflow-hidden"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ width: "40px" }}
+            animate={{ width: isHovered ? "150px" : "40px" }}
+            transition={{ duration: 0.3 }}
+            onClick={() => setIsModalCreateOpen(true)}
           >
-            Create Destination
-          </motion.span>
-        </motion.button>
+            <motion.div
+              initial={{ scale: 1 }}
+              animate={{ scale: isHovered ? 0.9 : 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <FaPlus className="text-xl" />
+            </motion.div>
+            <motion.span
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : -10 }}
+              transition={{ duration: 0.2 }}
+              className={`ml-2 text-sm ${isHovered ? "block" : "hidden"}`}
+            >
+              Create Destination
+            </motion.span>
+          </motion.button>
+        </div>
       </div>
 
       {/* Tabel */}
@@ -421,10 +500,28 @@ export default function DestinationPage() {
           <thead className="bg-blue-900 text-white">
             <tr>
               <th className="py-3 px-4 text-left">No</th>
-              <th className="py-3 px-4 text-left">ID</th>
-              <th className="py-3 px-4 text-left">Name</th>
-              <th className="py-3 px-4 text-left">Country</th>
-              <th className="py-3 px-4 text-left">City</th>
+              {[
+                { key: "destination_id", label: "ID" },
+                { key: "name", label: "Name" },
+                { key: "country", label: "Country" },
+                { key: "city", label: "City" },
+              ].map(({ key, label }) => (
+                <th
+                  key={key}
+                  className="py-3 px-4 text-left cursor-pointer select-none"
+                  onClick={() => handleSort(key)}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortField === key &&
+                      (sortOrder === "ASC" ? (
+                        <FaSortDown />
+                      ) : sortOrder === "DESC" ? (
+                        <FaSortUp />
+                      ) : null)}
+                  </span>
+                </th>
+              ))}
               <th className="py-3 px-4 text-center">Actions</th>
             </tr>
           </thead>
@@ -451,7 +548,9 @@ export default function DestinationPage() {
               destinations.map((destination, index) => {
                 return (
                   <tr key={destination.destination_id} className="border-b">
-                    <td className="py-3 px-4">{index + 1}</td>
+                    <td className="py-3 px-4">
+                      {(currentPage - 1) * limit + index + 1}
+                    </td>
                     <td className="py-3 px-4">{destination.destination_id}</td>
                     <td className="py-3 px-4">{destination.name}</td>
                     <td className="py-3 px-4">{destination.country}</td>
@@ -488,6 +587,62 @@ export default function DestinationPage() {
             )}
           </tbody>
         </table>
+      </div>
+      {/* Pagination */}
+      <div className="flex justify-center items-center gap-2 mt-4">
+        {/* Tombol Prev */}
+        <button
+          className={`px-3 py-2 rounded ${
+            currentPage === 1
+              ? "text-gray-400 cursor-not-allowed"
+              : "bg-gray-200 hover:bg-gray-300"
+          }`}
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+        >
+          <FaChevronLeft />
+        </button>
+
+        {/* Logika Menampilkan Nomor Halaman */}
+        {currentPage > 2 && totalPages > 3 && <span className="px-3">...</span>}
+
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter(
+            (page) =>
+              page === 1 ||
+              page === totalPages ||
+              (page >= currentPage - 1 && page <= currentPage + 1)
+          )
+          .map((page) => (
+            <button
+              key={page}
+              className={`px-3 py-2 rounded ${
+                currentPage === page
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              onClick={() => handlePageChange(page)}
+            >
+              {page}
+            </button>
+          ))}
+
+        {currentPage < totalPages - 1 && totalPages > 3 && (
+          <span className="px-3">...</span>
+        )}
+
+        {/* Tombol Next */}
+        <button
+          className={`px-3 py-2 rounded ${
+            currentPage === totalPages
+              ? "text-gray-400 cursor-not-allowed"
+              : "bg-gray-200 hover:bg-gray-300"
+          }`}
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+        >
+          <FaChevronRight />
+        </button>
       </div>
 
       {/* Modal Create */}
