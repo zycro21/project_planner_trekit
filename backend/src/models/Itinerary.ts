@@ -20,29 +20,54 @@ export class ItineraryModel {
     page?: number;
     includeDestinations?: boolean;
   }) {
-    const skip = (page - 1) * limit; // Hitung offset untuk pagination
+    const safeLimit = Math.max(limit, 1); // Pastikan limit minimal 1
+    const safePage = Math.max(page, 1); // Pastikan page minimal 1
+    const skip = (safePage - 1) * safeLimit; // Hitung offset untuk pagination
 
-    return await prisma.itinerary.findMany({
-      where: search
-        ? {
-            OR: [
-              { title: { contains: search, mode: "insensitive" } }, // Case insensitive search
-              { description: { contains: search, mode: "insensitive" } },
-            ],
-          }
-        : {},
+    try {
+      // Hitung total itinerary tanpa pagination (untuk totalPages)
+      const totalCount = await prisma.itinerary.count({
+        where: search
+          ? {
+              OR: [
+                { title: { contains: search, mode: "insensitive" } },
+                { description: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {},
+      });
 
-      orderBy: sortBy
-        ? { [sortBy]: sortOrder || "asc" }
-        : { created_at: "desc" },
+      // Ambil itinerary sesuai pagination
+      const result = await prisma.itinerary.findMany({
+        where: search
+          ? {
+              OR: [
+                { title: { contains: search, mode: "insensitive" } },
+                { description: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {},
 
-      take: limit,
-      skip: skip,
+        orderBy: sortBy
+          ? { [sortBy]: sortOrder === "desc" ? "desc" : "asc" }
+          : { created_at: "desc" },
 
-      include: includeDestinations
-        ? { itinerary_destinations: true }
-        : undefined,
-    });
+        take: safeLimit,
+        skip: skip,
+
+        include: includeDestinations
+          ? { itinerary_destinations: { include: { destination: true } } }
+          : undefined,
+      });
+
+      // Hitung total halaman
+      const totalPages = Math.ceil(totalCount / safeLimit);
+
+      return { data: result, totalPages }; // Kembalikan data & total halaman
+    } catch (error) {
+      console.error("ERROR in Prisma Query:", error);
+      throw error;
+    }
   }
 
   // Ambil itinerary berdasarkan ID dengan data lengkap
@@ -101,12 +126,21 @@ export class ItineraryModel {
       order_index?: number;
     }[]
   ) {
+    console.log("📌 [MODEL] Memulai proses create itinerary...");
+    console.log("📥 Data yang diterima di model:", {
+      user_id,
+      data,
+      destinations,
+    });
+
     // Validasi input
     if (!data.title || !data.start_date || !data.end_date) {
+      console.log("❌ [MODEL] Validasi gagal: data tidak lengkap");
       throw new Error("Title, start_date, dan end_date wajib diisi.");
     }
 
     if (data.title.length > 255) {
+      console.log("❌ [MODEL] Error: Judul terlalu panjang");
       throw new Error("Judul itinerary tidak boleh lebih dari 255 karakter.");
     }
 
@@ -115,50 +149,69 @@ export class ItineraryModel {
     const endDate = data.end_date ? new Date(data.end_date) : null;
 
     if (!startDate || isNaN(startDate.getTime())) {
+      console.log("❌ [MODEL] Error: Format start_date tidak valid");
       throw new Error("Format start_date tidak valid.");
     }
     if (!endDate || isNaN(endDate.getTime())) {
+      console.log("❌ [MODEL] Error: Format end_date tidak valid");
       throw new Error("Format end_date tidak valid.");
     }
     if (endDate < startDate) {
+      console.log("❌ [MODEL] Error: end_date lebih kecil dari start_date");
       throw new Error("end_date tidak boleh lebih kecil dari start_date.");
     }
 
-    // Buat ID itinerary dengan format "ITIN-user_id-UUID"
+    console.log("✅ [MODEL] Validasi sukses. Membuat itinerary...");
+
+    // Buat ID itinerary
     const itinerary_id = `ITIN-${user_id}-${uuidv4().slice(0, 8)}`;
+    console.log("🆔 ID itinerary yang dibuat:", itinerary_id);
 
-    // Mulai transaksi database
-    return await prisma.$transaction(async (prisma) => {
-      // Buat itinerary baru
-      const newItinerary = await prisma.itinerary.create({
-        data: {
-          itinerary_id,
-          user_id,
-          title: data.title,
-          description: data.description || "",
-          start_date: startDate,
-          end_date: endDate,
-          is_public: true, // Default ke true
-        },
-      });
-
-      // Jika ada destinasi, tambahkan ke itinerary_destinations
-      if (destinations && destinations.length > 0) {
-        const itineraryDestinations = destinations.map((dest) => ({
-          id: `${itinerary_id}-${dest.destination_id}-${uuidv4().slice(0, 5)}`,
-          itinerary_id,
-          destination_id: dest.destination_id,
-          day: dest.day || null, // Opsional
-          order_index: dest.order_index || null, // Opsional
-        }));
-
-        await prisma.itineraryDestination.createMany({
-          data: itineraryDestinations,
+    try {
+      return await prisma.$transaction(async (prisma) => {
+        // Simpan itinerary di database
+        console.log("🚀 [DATABASE] Menyimpan itinerary ke database...");
+        const newItinerary = await prisma.itinerary.create({
+          data: {
+            itinerary_id,
+            user_id,
+            title: data.title,
+            description: data.description || "",
+            start_date: startDate,
+            end_date: endDate,
+            is_public: true,
+          },
         });
-      }
 
-      return newItinerary;
-    });
+        console.log("✅ [DATABASE] Itinerary berhasil disimpan");
+
+        // Jika ada destinasi, tambahkan ke itinerary_destinations
+        if (destinations && destinations.length > 0) {
+          console.log("🚀 [DATABASE] Menambahkan destinasi ke itinerary...");
+          const itineraryDestinations = destinations.map((dest) => ({
+            id: `${itinerary_id}-${dest.destination_id}-${uuidv4().slice(
+              0,
+              5
+            )}`,
+            itinerary_id,
+            destination_id: dest.destination_id,
+            day: dest.day || null,
+            order_index: dest.order_index || null,
+          }));
+
+          await prisma.itineraryDestination.createMany({
+            data: itineraryDestinations,
+          });
+
+          console.log("✅ [DATABASE] Destinasi berhasil ditambahkan");
+        }
+
+        return newItinerary;
+      });
+    } catch (error) {
+      console.log("❌ [ERROR] Gagal menyimpan itinerary:", (error as Error).message);
+      throw error;
+    }
   }
 
   // Update itinerary (tanpa mengubah destinasi)
@@ -180,7 +233,10 @@ export class ItineraryModel {
   ) {
     return await prisma.itineraryDestination.create({
       data: {
-        id: `${itinerary_id}-${destinationData.destination_id}-${uuidv4().slice(0, 5)}`,
+        id: `${itinerary_id}-${destinationData.destination_id}-${uuidv4().slice(
+          0,
+          5
+        )}`,
         itinerary_id,
         destination_id: destinationData.destination_id,
         day: destinationData.day,

@@ -1,56 +1,64 @@
-import { Request, Response } from "express";
+import { Request, Response, RequestHandler } from "express";
 import { ItineraryModel } from "../models/Itinerary";
 import { PrismaClient, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const getAllItineraries = async (req: Request, res: Response) => {
+export const getAllItineraries: RequestHandler = async (
+  req: Request,
+  res: Response
+) => {
   try {
     const { search, sortBy, sortOrder, limit, page, includeDestinations } =
       req.query;
 
-    // Validasi input query params
+    // Validasi sortBy
     const validSortFields = ["start_date", "end_date"];
-    if (sortBy && !validSortFields.includes(sortBy as string)) {
-      res.status(400).json({
-        message: "sortBy harus 'start_date' atau 'end_date'",
-      });
-      return;
-    }
+    const sortByFixed =
+      sortBy && validSortFields.includes(sortBy as string)
+        ? (sortBy as "start_date" | "end_date")
+        : undefined;
 
-    if (sortOrder && !["asc", "desc"].includes(sortOrder as string)) {
-      res.status(400).json({
-        message: "sortOrder harus 'asc' atau 'desc'",
-      });
-      return;
-    }
+    // Validasi sortOrder
+    const sortOrderFixed =
+      sortOrder && ["asc", "desc"].includes((sortOrder as string).toLowerCase())
+        ? (sortOrder as "asc" | "desc")
+        : undefined;
 
-    const limitNum = limit ? parseInt(limit as string) : 10;
-    const pageNum = page ? parseInt(page as string) : 1;
+    // Parsing limit & page dengan nilai default
+    const limitNum = parseInt(limit as string) || 10;
+    const pageNum = parseInt(page as string) || 1;
+
     if (isNaN(limitNum) || isNaN(pageNum) || limitNum < 1 || pageNum < 1) {
       res.status(400).json({
-        message: "limit dan page harus angka positif",
+        message: "Parameter 'limit' dan 'page' harus angka positif",
       });
       return;
     }
 
-    const itineraries = await ItineraryModel.findAll({
+    // Parsing includeDestinations menjadi boolean
+    const includeDestinationsBool =
+      typeof includeDestinations === "string" &&
+      includeDestinations.toLowerCase() === "true";
+
+    // Query ke database
+    const { data, totalPages } = await ItineraryModel.findAll({
       search: search as string,
-      sortBy: sortBy as "start_date" | "end_date",
-      sortOrder: sortOrder as "asc" | "desc",
+      sortBy: sortByFixed,
+      sortOrder: sortOrderFixed,
       limit: limitNum,
       page: pageNum,
-      includeDestinations: includeDestinations === "true",
+      includeDestinations: includeDestinationsBool,
     });
 
-    res.json(itineraries);
-    return;
+    // Perbaikan: Response dikembalikan sebagai objek dengan `data` dan `totalPages`
+    res.json({ data, totalPages });
   } catch (error) {
     res.status(500).json({
       message: "Terjadi kesalahan server",
+      itineraries: [],
       error: error instanceof Error ? error.message : "Unknown error",
     });
-    return;
   }
 };
 
@@ -108,51 +116,49 @@ export const getItinerariesByUserId = async (req: Request, res: Response) => {
 };
 
 export const createItinerary = async (req: Request, res: Response) => {
+  console.log("📌 [CREATE ITINERARY] Request masuk");
+  console.log("📥 Data dari frontend:", req.body);
+
   const { user_id, title, description, start_date, end_date, destinations } =
     req.body;
 
   // 🔹 Validasi input utama
   if (!user_id || !title || !start_date || !end_date) {
+    console.log("❌ Validasi gagal: Data wajib belum lengkap");
     res.status(400).json({
       message: "user_id, title, start_date, dan end_date wajib diisi.",
     });
     return;
   }
 
-  if (typeof title !== "string" || title.trim().length === 0) {
-    res
-      .status(400)
-      .json({ message: "Title harus berupa string dan tidak boleh kosong." });
-    return;
-  }
-
-  if (title.length > 255) {
-    res
-      .status(400)
-      .json({ message: "Title tidak boleh lebih dari 255 karakter." });
-    return;
-  }
+  console.log("✅ Validasi data berhasil");
 
   // 🔹 Konversi tanggal ke Date object dan validasi
   const startDate = new Date(start_date);
   const endDate = new Date(end_date);
 
   if (isNaN(startDate.getTime())) {
+    console.log("❌ Error: Format start_date tidak valid");
     res.status(400).json({ message: "Format start_date tidak valid." });
     return;
   }
   if (isNaN(endDate.getTime())) {
+    console.log("❌ Error: Format end_date tidak valid");
     res.status(400).json({ message: "Format end_date tidak valid." });
     return;
   }
   if (endDate < startDate) {
-    res
-      .status(400)
-      .json({ message: "end_date tidak boleh lebih kecil dari start_date." });
+    console.log("❌ Error: end_date lebih kecil dari start_date");
+    res.status(400).json({
+      message: "end_date tidak boleh lebih kecil dari start_date.",
+    });
     return;
   }
 
+  console.log("✅ Tanggal valid:", { start_date, end_date });
+
   try {
+    console.log("🚀 [DATABASE] Mulai proses create itinerary...");
     const newItinerary = await ItineraryModel.create(
       user_id,
       {
@@ -160,19 +166,19 @@ export const createItinerary = async (req: Request, res: Response) => {
         description: description || "",
         start_date: startDate,
         end_date: endDate,
-        is_public: true, // Default is_public ke true
+        is_public: true,
       },
-      destinations // Daftar destinasi (opsional)
+      destinations
     );
 
+    console.log("✅ [DATABASE] Itinerary berhasil dibuat:", newItinerary);
     res.status(201).json(newItinerary);
-    return;
   } catch (error: any) {
+    console.log("❌ [ERROR] Gagal membuat itinerary:", error.message);
     res.status(500).json({
       message: "Gagal membuat itinerary",
       error: error.message,
     });
-    return;
   }
 };
 

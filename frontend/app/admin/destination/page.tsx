@@ -588,6 +588,7 @@ export default function DestinationPage() {
           </tbody>
         </table>
       </div>
+      
       {/* Pagination */}
       <div className="flex justify-center items-center gap-2 mt-4">
         {/* Tombol Prev */}

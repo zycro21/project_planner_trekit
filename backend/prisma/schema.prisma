@@ -8,7 +8,7 @@ datasource db {
 }
 
 model ItineraryDestination {
-  id             String         @id @db.VarChar(50)
+  id             String         @id @db.VarChar(200)
   itinerary_id   String?        @db.VarChar(50)
   destination_id String?        @db.VarChar(50)
   day            Int?
