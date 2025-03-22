@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import {
   FaPlus,
   FaEdit,
@@ -31,10 +31,10 @@ interface Itinerary {
 interface ItineraryDestination {
   id: string;
   itinerary_id?: string;
-  destination_id?: string;
-  day?: number;
-  order_index?: number;
-  destination?: Destination;
+  destination_id: string;
+  day: number;
+  order_index: number;
+  destination?: Destination; // Opsional
   itinerary?: Itinerary;
 }
 
@@ -59,7 +59,12 @@ interface DestinationImage {
 
 interface ItineraryDestination {
   id: string;
-  detail: string;
+  itinerary_id?: string; // Opsional, bisa digunakan untuk relasi
+  destination_id: string; // Wajib ada, referensi ke destinasi
+  day: number; // Wajib ada, menentukan hari keberapa dalam itinerary
+  order_index: number; // Wajib ada, menentukan urutan dalam itinerary
+  destination?: Destination; // Opsional, jika perlu mengambil detail destinasi
+  itinerary?: Itinerary; // Opsional, jika perlu mengambil detail itinerary
 }
 
 interface Review {
@@ -71,6 +76,15 @@ interface WishlistDestination {
   id: string;
   user_id: string;
 }
+
+type EditItineraryState = {
+  title: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  is_public: boolean;
+  itinerary_destinations: ItineraryDestination[]; // Tambahkan properti ini
+};
 
 export default function ItineraryPage() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
@@ -116,6 +130,62 @@ export default function ItineraryPage() {
   const [isModalDetailOpen, setIsModalDetailOpen] = useState(false);
   const [selectedDetailItinerary, setSelectedDetailItinerary] =
     useState<Itinerary | null>(null);
+  const DestinationsList = () => {
+    const destinationsList =
+      selectedDetailItinerary?.itinerary_destinations ?? []; // Pakai properti yang benar
+
+    return destinationsList.length ? (
+      <ul className="mt-4">
+        {destinationsList.map((dest) => (
+          <li key={dest.id} className="flex items-center gap-2 p-2 border-b">
+            <span className="text-blue-600">📍</span>
+            {dest.destination?.name || "Unknown"} (
+            {dest.destination?.city || "Unknown"},{" "}
+            {dest.destination?.country || "Unknown"})
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className="text-sm text-gray-500 mt-4">
+        Tidak ada destinasi dalam itinerary ini.
+      </p>
+    );
+  };
+
+  // State Edit atau Update Itinerary
+  const [isModalEditOpen, setIsModalEditOpen] = useState(false);
+  const [selectedEditItinerary, setSelectedEditItinerary] =
+    useState<Itinerary | null>(null);
+  const [editItinerary, setEditItinerary] = useState<EditItineraryState>({
+    title: "",
+    description: "",
+    start_date: "",
+    end_date: "",
+    is_public: true,
+    itinerary_destinations: [],
+  });
+  // State untuk destinasi yang tersedia & yang dipilih (bagian edit)
+  const [availableEditDestinations, setAvailableEditDestinations] = useState<{
+    data: Destination[];
+    total: number;
+    currentPage: number;
+    totalPages: number;
+  } | null>(null);
+  const [selectedEditDestinations, setSelectedEditDestinations] = useState<
+    ItineraryDestination[]
+  >([]);
+  const [isDestinationEditModalOpen, setIsDestinationEditModalOpen] =
+    useState(false);
+  const [currentPageEditDestination, setCurrentPageEditDestination] =
+    useState(1);
+  const [totalPagesEditDestination, setTotalPagesEditDestination] = useState(1);
+  const limitEditDestination = 10;
+
+  // State untuk Delete
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedDeleteItineraryId, setSelectedDeleteItineraryId] = useState<
+    string | null
+  >(null);
 
   // Modal Controls
   const openModal = () => setIsModalCreateOpen(true);
@@ -194,7 +264,7 @@ export default function ItineraryPage() {
       const params: any = {
         sort: sortOrderDestination || "ASC",
         sortField: sortFieldDestination || "name",
-        limitDestination,
+        limit: limitDestination,
         offset: (currentPageDestination - 1) * limitDestination,
       };
 
@@ -206,8 +276,21 @@ export default function ItineraryPage() {
         }
       );
 
-      setDestinations(response.data.data);
-      setTotalPagesDestination(response.data.totalPages);
+      if (
+        response.data &&
+        typeof response.data === "object" &&
+        Array.isArray(response.data.data)
+      ) {
+        setDestinations(response.data.data);
+        setTotalPagesDestination(response.data.totalPages);
+      } else {
+        console.warn(
+          "Response data tidak sesuai format yang diharapkan:",
+          response.data
+        );
+        setDestinations([]);
+        setTotalPagesDestination(1);
+      }
     } catch (err) {
       setError("Gagal mengambil data destinasi");
     } finally {
@@ -229,6 +312,73 @@ export default function ItineraryPage() {
   }, [
     isModalDestinationsOpen,
     currentPageDestination,
+    sortFieldDestination,
+    sortOrderDestination,
+  ]);
+
+  const fetchEditDestinations = async () => {
+    try {
+      const params: any = {
+        sort: sortOrderDestination || "ASC",
+        sortField: sortFieldDestination || "name",
+        limit: limitEditDestination,
+        offset: (currentPageEditDestination - 1) * limitEditDestination,
+      };
+
+      const response = await axios.get(
+        "http://localhost:5000/api/destinations/destinations",
+        {
+          params,
+          withCredentials: true,
+        }
+      );
+
+      if (
+        response.data &&
+        typeof response.data === "object" &&
+        Array.isArray(response.data.data)
+      ) {
+        setAvailableEditDestinations({
+          data: response.data.data,
+          total: response.data.total ?? 0,
+          currentPage: response.data.currentPage ?? 1,
+          totalPages: response.data.totalPages ?? 1,
+        });
+      } else {
+        console.warn(
+          "response.data bukan objek yang diharapkan:",
+          response.data
+        );
+        setAvailableEditDestinations({
+          data: [],
+          total: 0,
+          currentPage: 1,
+          totalPages: 1,
+        });
+      }
+
+      setTotalPagesEditDestination(response.data.totalPages);
+    } catch (err) {
+      setError("Gagal mengambil data destinasi untuk edit");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePageEditDestinationChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPagesEditDestination) {
+      setCurrentPageEditDestination(newPage);
+    }
+  };
+
+  // Fetch destinasi untuk modal edit
+  useEffect(() => {
+    if (isDestinationEditModalOpen) {
+      fetchEditDestinations();
+    }
+  }, [
+    isDestinationEditModalOpen,
+    currentPageEditDestination,
     sortFieldDestination,
     sortOrderDestination,
   ]);
@@ -293,15 +443,18 @@ export default function ItineraryPage() {
   const openDetailModal = async (id: string) => {
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/itineraries/itinerary/${id}`, {
+        `http://localhost:5000/api/itineraries/itinerary/${id}`,
+        {
           withCredentials: true,
         }
       );
 
+      console.log("API Response:", response.data);
+
       // Pastikan itinerary_destinations tidak undefined
       setSelectedDetailItinerary({
         ...response.data,
-        itinerary_destinations: response.data.itinerary_destinations ?? [],
+        itinerary_destinations: response.data.destinations ?? [],
       });
 
       setIsModalDetailOpen(true);
@@ -314,6 +467,211 @@ export default function ItineraryPage() {
   const closeDetailModal = () => {
     setIsModalDetailOpen(false);
     setSelectedDetailItinerary(null);
+  };
+
+  const openEditItineraryModal = async (itinerary: Itinerary) => {
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/api/itineraries/itinerary/${itinerary.itinerary_id}`,
+        { withCredentials: true }
+      );
+      const fullItinerary = response.data;
+
+      console.log("🔹 Full itinerary response:", fullItinerary);
+      console.log("🔹 Destinations:", fullItinerary.destinations);
+
+      // Simpan data itinerary yang diambil
+      setSelectedEditItinerary(fullItinerary);
+
+      // Periksa apakah fullItinerary.destinations ada dan merupakan array
+      const destinations = Array.isArray(fullItinerary.destinations)
+        ? fullItinerary.destinations.map((dest: any, index: number) => ({
+            id: dest.id || "",
+            destination_id:
+              dest.destination_id || dest.destination?.destination_id || "", // ✅ Fix: Ambil langsung dari `dest.destination_id`
+            day: dest.day || 1,
+            order_index: index + 1,
+          }))
+        : [];
+
+      console.log("🔹 Destinasi yang akan di-set:", destinations);
+
+      setEditItinerary({
+        title: fullItinerary.title || "",
+        description: fullItinerary.description || "",
+        start_date: fullItinerary.start_date
+          ? new Date(fullItinerary.start_date).toISOString().split("T")[0]
+          : "",
+        end_date: fullItinerary.end_date
+          ? new Date(fullItinerary.end_date).toISOString().split("T")[0]
+          : "",
+        is_public: fullItinerary.is_public ?? true,
+        itinerary_destinations: destinations, // ✅ Fix: Pastikan format benar
+      });
+
+      // Simpan destinasi yang sudah ada di itinerary ke dalam state
+      setSelectedEditDestinations(destinations);
+
+      // Fetch semua destinasi yang tersedia
+      const destinationsRes = await axios.get(
+        "http://localhost:5000/api/destinations/destinations",
+        { withCredentials: true }
+      );
+
+      console.log("🔹 All available destinations:", destinationsRes.data);
+
+      setAvailableEditDestinations(destinationsRes.data);
+
+      setIsModalEditOpen(true);
+    } catch (error) {
+      console.error("❌ Gagal mengambil detail itinerary:", error);
+    }
+  };
+
+  // 🔹 Handle perubahan input form edit itinerary
+  const handleEditInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target;
+    const newValue =
+      type === "checkbox" && e.target instanceof HTMLInputElement
+        ? e.target.checked
+        : value;
+
+    setEditItinerary((prev) => ({
+      ...prev,
+      [name]: newValue,
+    }));
+  };
+
+  // 🔹 Handle pemilihan destinasi dalam form edit itinerary (menumpuk sebelum submit)
+  const handleSelectEditDestination = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    destination: Destination
+  ) => {
+    setSelectedEditDestinations((prev) => {
+      const isExist = prev.some(
+        (d) => d.destination_id === destination.destination_id
+      );
+
+      if (e.target.checked) {
+        return isExist
+          ? prev
+          : [
+              ...prev,
+              {
+                id: "",
+                destination_id: destination.destination_id,
+                day: 1,
+                detail: "",
+                order_index: prev.length + 1,
+              },
+            ];
+      } else {
+        return prev
+          .filter((d) => d.destination_id !== destination.destination_id)
+          .map((d, index) => ({
+            ...d,
+            order_index: index + 1, // Perbaiki urutan setelah penghapusan
+          }));
+      }
+    });
+  };
+
+  // 🔹 Handle konfirmasi destinasi yang dipilih dalam modal edit itinerary
+  const handleAddEditDestination = () => {
+    setEditItinerary({
+      ...editItinerary,
+      itinerary_destinations: selectedEditDestinations,
+    });
+    setIsDestinationEditModalOpen(false); // Tutup modal setelah konfirmasi
+  };
+
+  // 🔹 Handle perubahan hari destinasi dalam form edit itinerary
+  const handleChangeEditDestinationDay = (
+    destinationId: string,
+    newDay: number | undefined
+  ) => {
+    setSelectedEditDestinations((prev) =>
+      prev.map((d) =>
+        d.destination_id === destinationId ? { ...d, day: newDay ?? 1 } : d
+      )
+    );
+  };
+
+  // 🔹 Submit form edit itinerary (mengirim ke backend sekaligus)
+  const handleSubmitEditItinerary = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedEditItinerary) return;
+
+    // Hapus duplikat sebelum mengirim ke backend
+    const uniqueDestinations = selectedEditDestinations.filter(
+      (v, i, a) =>
+        a.findIndex((t) => t.destination_id === v.destination_id) === i
+    );
+
+    const updatedItinerary = {
+      ...editItinerary,
+      destinations: uniqueDestinations.map((d) => ({
+        destination_id: d.destination_id,
+        day: d.day,
+        order_index: d.order_index,
+      })),
+    };
+
+    console.log("🔹 Mengirim data ke backend:", updatedItinerary);
+
+    try {
+      await axios.put(
+        `http://localhost:5000/api/itineraries/itinerary/${selectedEditItinerary.itinerary_id}`,
+        updatedItinerary,
+        { withCredentials: true }
+      );
+
+      toast.success("Itinerary berhasil diperbarui!", {
+        position: "top-right",
+        autoClose: 3000,
+      });
+
+      setIsModalEditOpen(false);
+      fetchItineraries(); // Refresh data setelah update
+    } catch (error) {
+      console.error("❌ Gagal update itinerary:", error);
+    }
+  };
+
+  const openDeleteModal = (itineraryId: string) => {
+    setSelectedDeleteItineraryId(itineraryId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const deleteItinerary = async () => {
+    if (!selectedDeleteItineraryId) return;
+
+    try {
+      await axios.delete(
+        `http://localhost:5000/api/itineraries/itinerary/${selectedDeleteItineraryId}`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      toast.success("Itinerary berhasil dihapus");
+
+      // Perbarui daftar itinerary
+      setItineraries((prev) =>
+        prev.filter(
+          (itinerary) => itinerary.itinerary_id !== selectedDeleteItineraryId
+        )
+      );
+
+      fetchItineraries();
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error("❌ Gagal menghapus itinerary:", error);
+      toast.error("Gagal menghapus itinerary");
+    }
   };
 
   return (
@@ -438,10 +796,16 @@ export default function ItineraryPage() {
                     >
                       <FaEye />
                     </button>
-                    <button className="bg-yellow-100 p-2 rounded">
+                    <button
+                      className="bg-yellow-100 p-2 rounded"
+                      onClick={() => openEditItineraryModal(itinerary)}
+                    >
                       <FaEdit />
                     </button>
-                    <button className="bg-red-100 p-2 rounded">
+                    <button
+                      className="bg-red-100 p-2 rounded"
+                      onClick={() => openDeleteModal(itinerary.itinerary_id)}
+                    >
                       <FaTrash />
                     </button>
                   </td>
@@ -724,28 +1088,7 @@ export default function ItineraryPage() {
               {new Date(selectedDetailItinerary.end_date).toLocaleDateString()}
             </p>
 
-            {/* Destinasi */}
-            {(selectedDetailItinerary.itinerary_destinations ?? []).length >
-            0 ? (
-              <ul className="mt-4">
-                {(selectedDetailItinerary.itinerary_destinations ?? []).map(
-                  (dest) => (
-                    <li
-                      key={dest.id}
-                      className="flex items-center gap-2 p-2 border-b"
-                    >
-                      <span className="text-blue-600">📍</span>
-                      {dest.destination?.name} ({dest.destination?.city},{" "}
-                      {dest.destination?.country})
-                    </li>
-                  )
-                )}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-500 mt-4">
-                Tidak ada destinasi dalam itinerary ini.
-              </p>
-            )}
+            <DestinationsList />
 
             {/* Tombol Tutup */}
             <button
@@ -754,6 +1097,335 @@ export default function ItineraryPage() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {isModalEditOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+            <h2 className="text-xl font-semibold mb-4">Edit Itinerary</h2>
+
+            <form onSubmit={handleSubmitEditItinerary} className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium">Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={editItinerary.title}
+                  onChange={handleEditInputChange}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium">Description</label>
+                <textarea
+                  name="description"
+                  value={editItinerary.description}
+                  onChange={handleEditInputChange}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+
+              {/* Start Date */}
+              <div>
+                <label className="block text-sm font-medium">Start Date</label>
+                <input
+                  type="date"
+                  name="start_date"
+                  value={editItinerary.start_date}
+                  onChange={handleEditInputChange}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+
+              {/* End Date */}
+              <div>
+                <label className="block text-sm font-medium">End Date</label>
+                <input
+                  type="date"
+                  name="end_date"
+                  value={editItinerary.end_date}
+                  onChange={handleEditInputChange}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+
+              {/* Public Checkbox */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="is_public"
+                  checked={editItinerary.is_public}
+                  onChange={handleEditInputChange}
+                  className="w-4 h-4"
+                />
+                <label className="text-sm">Public</label>
+              </div>
+
+              {/* List of selected destinations */}
+              <div className="mt-4">
+                {(() => {
+                  console.log(
+                    "🔹 availableEditDestinations:",
+                    availableEditDestinations
+                  );
+                  console.log(
+                    "🔹 Is availableEditDestinations an array?",
+                    Array.isArray(availableEditDestinations?.data)
+                  );
+                  return null;
+                })()}
+
+                {editItinerary?.itinerary_destinations &&
+                editItinerary.itinerary_destinations.length > 0 ? (
+                  <ul className="border rounded p-2">
+                    {editItinerary.itinerary_destinations.map(
+                      (itineraryDest) => {
+                        console.log("🔹 Destination in map():", itineraryDest);
+                        console.log(
+                          "🔹 Destination ID:",
+                          itineraryDest.destination_id
+                        );
+
+                        // Pastikan availableEditDestinations.data adalah array
+                        const availableDestinations = Array.isArray(
+                          availableEditDestinations
+                        )
+                          ? availableEditDestinations
+                          : availableEditDestinations?.data;
+
+                        // Periksa apakah availableDestinations berisi array
+                        if (!Array.isArray(availableDestinations)) {
+                          console.warn(
+                            "⚠️ availableEditDestinations bukan array!"
+                          );
+                          return null;
+                        }
+
+                        // Cari detail destinasi berdasarkan destination_id
+                        const destDetail = availableDestinations.find(
+                          (dest) =>
+                            dest.destination_id === itineraryDest.destination_id
+                        );
+
+                        return (
+                          <li
+                            key={
+                              itineraryDest.destination_id || itineraryDest.id
+                            }
+                            className="flex items-center gap-2 p-2 border-b last:border-b-0"
+                          >
+                            <span className="text-sm">
+                              {destDetail
+                                ? destDetail.name
+                                : "Unknown Destination"}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              (
+                              {destDetail
+                                ? `${destDetail.city}, ${destDetail.country}`
+                                : "Location Unknown"}
+                              )
+                            </span>
+                          </li>
+                        );
+                      }
+                    )}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    No destinations added yet.
+                  </p>
+                )}
+              </div>
+
+              {/* Button to add more destinations */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedEditItinerary) {
+                    setSelectedEditDestinations(
+                      selectedEditItinerary.itinerary_destinations || []
+                    );
+                  }
+                  setIsDestinationEditModalOpen(true);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Add Destination
+              </button>
+
+              {/* Modal Actions */}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModalEditOpen(false)}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Update
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isDestinationEditModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+            <h2 className="text-xl font-semibold mb-4">Select Destination</h2>
+
+            {/* Daftar Destinasi */}
+            <div className="max-h-60 overflow-y-auto">
+              {Array.isArray(availableEditDestinations?.data) &&
+                availableEditDestinations.data.map((destination) => {
+                  const selected = selectedEditDestinations.find(
+                    (d) => d.destination_id === destination.destination_id
+                  );
+
+                  return (
+                    <div
+                      key={destination.destination_id}
+                      className="flex flex-col p-2 border-b"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!selected}
+                          onChange={(e) =>
+                            handleSelectEditDestination(e, destination)
+                          }
+                        />
+                        <span>
+                          {destination.name} - {destination.city},{" "}
+                          {destination.country}
+                        </span>
+                      </div>
+
+                      {/* Input untuk Day */}
+                      {selected && (
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Day (Hari Ke-)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={selected.day ?? 1} // ✅ Ambil nilai dari state utama
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const newValue =
+                                value === "" ? undefined : Number(value);
+
+                              // Pastikan nilai valid sebelum update ke state utama
+                              if (newValue === undefined || newValue >= 1) {
+                                handleChangeEditDestinationDay(
+                                  destination.destination_id,
+                                  newValue
+                                );
+                              }
+                            }}
+                            className="w-16 border rounded p-1 text-center"
+                            placeholder="1"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Pagination */}
+            <div className="flex justify-between items-center mt-4">
+              <button
+                onClick={() =>
+                  handlePageEditDestinationChange(
+                    currentPageEditDestination - 1
+                  )
+                }
+                disabled={currentPageEditDestination === 1}
+                className={`px-4 py-2 rounded font-medium transition-all ${
+                  currentPageEditDestination === 1
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Prev
+              </button>
+
+              <span className="text-gray-700 font-semibold">
+                Page {currentPageEditDestination} of {totalPagesEditDestination}
+              </span>
+
+              <button
+                onClick={() =>
+                  handlePageEditDestinationChange(
+                    currentPageEditDestination + 1
+                  )
+                }
+                disabled={
+                  currentPageEditDestination === totalPagesEditDestination
+                }
+                className={`px-4 py-2 rounded font-medium transition-all ${
+                  currentPageEditDestination === totalPagesEditDestination
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+
+            {/* Tombol Confirm */}
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setIsDestinationEditModalOpen(false)}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddEditDestination}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h2 className="text-lg font-bold">Konfirmasi Hapus</h2>
+            <p>Apakah Anda yakin ingin menghapus itinerary ini?</p>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                className="bg-gray-300 px-4 py-2 rounded"
+                onClick={() => setIsDeleteModalOpen(false)}
+              >
+                Batal
+              </button>
+              <button
+                className="bg-red-500 text-white px-4 py-2 rounded"
+                onClick={deleteItinerary}
+              >
+                Hapus
+              </button>
+            </div>
           </div>
         </div>
       )}

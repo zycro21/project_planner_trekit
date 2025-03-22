@@ -257,7 +257,7 @@ export default function DestinationPage() {
         `http://localhost:5000/api/destinations/destinations/${destination.destination_id}`,
         { withCredentials: true }
       );
-      const fullDestination = response.data; // Data lengkap dari API Detail
+      const fullDestination = response.data;
 
       setSelectedEditDestination(fullDestination);
 
@@ -588,7 +588,7 @@ export default function DestinationPage() {
           </tbody>
         </table>
       </div>
-      
+
       {/* Pagination */}
       <div className="flex justify-center items-center gap-2 mt-4">
         {/* Tombol Prev */}

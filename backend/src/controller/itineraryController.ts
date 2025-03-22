@@ -65,7 +65,6 @@ export const getAllItineraries: RequestHandler = async (
 export const getItineraryById = async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  // Jika ID kosong atau hanya tanda "/", kembalikan 404
   if (!id || id.trim() === "" || id === "/") {
     res.status(404).json({ message: "Itinerary tidak ditemukan" });
     return;
@@ -79,8 +78,24 @@ export const getItineraryById = async (req: Request, res: Response) => {
       return;
     }
 
-    res.json(itinerary);
-    return;
+    // Pastikan itinerary_destinations tidak undefined
+    const destinations = itinerary.itinerary_destinations || [];
+
+    res.json({
+      itinerary_id: itinerary.itinerary_id,
+      title: itinerary.title,
+      description: itinerary.description,
+      start_date: itinerary.start_date,
+      end_date: itinerary.end_date,
+      is_public: itinerary.is_public,
+      user: itinerary.user, // Informasi user
+      destinations: itinerary.itinerary_destinations.map((itineraryDest) => ({
+        id: itineraryDest.id,
+        destination: itineraryDest.destination || null, // Kirim seluruh objek destination
+        day: itineraryDest.day,
+        order_index: itineraryDest.order_index,
+      })),
+    });
   } catch (error: any) {
     res.status(500).json({
       message: "Terjadi kesalahan server",
@@ -246,12 +261,12 @@ export const updateItinerary = async (req: Request, res: Response) => {
   }
 };
 
-// Tambah destinasi ke itinerary
+// Tambah destinasi ke itinerary (dengan replace jika duplikat)
 export const addDestinationToItinerary = async (
   req: Request,
   res: Response
 ) => {
-  const { id: itinerary_id } = req.params; // pakai `id` sesuai route
+  const { id: itinerary_id } = req.params;
   const { destination_id, day, order_index } = req.body;
 
   try {
@@ -273,18 +288,15 @@ export const addDestinationToItinerary = async (
     const itinerary = await prisma.itinerary.findUnique({
       where: { itinerary_id },
     });
-
     if (!itinerary) {
       res.status(404).json({ message: "Itinerary tidak ditemukan." });
       return;
     }
 
-    console.log("Cek destination_id yang dicari:", destination_id);
+    // Cek apakah destinasi ada
     const destination = await prisma.destination.findUnique({
       where: { destination_id },
     });
-    console.log("Hasil pencarian destination:", destination);
-
     if (!destination) {
       res.status(404).json({ message: "Destinasi tidak ditemukan." });
       return;
@@ -298,23 +310,16 @@ export const addDestinationToItinerary = async (
       return;
     }
 
-    // Cek apakah `order_index` sudah ada di hari yang sama dalam itinerary ini
-    const existingDestination = await prisma.itineraryDestination.findFirst({
+    // Hapus data lama jika ada `order_index` atau `destination_id` yang sama di hari itu
+    await prisma.itineraryDestination.deleteMany({
       where: {
         itinerary_id,
         day,
-        order_index,
+        OR: [{ order_index }, { destination_id }],
       },
     });
 
-    if (existingDestination) {
-      res
-        .status(400)
-        .json({ message: "order_index sudah digunakan pada hari tersebut." });
-      return;
-    }
-
-    // Gunakan model untuk tambah destinasi
+    // 🔹 Tambahkan data baru
     const newDestination = await ItineraryModel.addDestination(itinerary_id, {
       destination_id,
       day,

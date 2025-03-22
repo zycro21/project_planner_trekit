@@ -70,7 +70,6 @@ export class ItineraryModel {
     }
   }
 
-  // Ambil itinerary berdasarkan ID dengan data lengkap
   static async findById(itinerary_id: string) {
     return await prisma.itinerary.findUnique({
       where: { itinerary_id },
@@ -96,12 +95,12 @@ export class ItineraryModel {
               },
             },
           },
-          orderBy: { day: "asc" }, // Urutkan berdasarkan hari perjalanan
+          orderBy: { day: "asc" },
         },
       },
     });
   }
-
+  
   // Get all itineraries by user_id with destinations
   static async findByUserId(user_id: string) {
     return await prisma.itinerary.findMany({
@@ -209,7 +208,10 @@ export class ItineraryModel {
         return newItinerary;
       });
     } catch (error) {
-      console.log("❌ [ERROR] Gagal menyimpan itinerary:", (error as Error).message);
+      console.log(
+        "❌ [ERROR] Gagal menyimpan itinerary:",
+        (error as Error).message
+      );
       throw error;
     }
   }
