@@ -13,12 +13,12 @@ export default function Navbar() {
 
   return (
     <motion.nav
-      className="bg-blue-900 text-white py-5 fixed w-full shadow-lg z-50"
+      className="bg-blue-900 text-white py-5 fixed w-full shadow-lg z-[100] overflow-visible"
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.8, ease: "easeOut" }}
     >
-      <div className="container mx-auto flex items-center justify-between px-8">
+      <div className="container mx-auto max-w-screen-xl flex items-center justify-between px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3">
           <Image
@@ -33,7 +33,7 @@ export default function Navbar() {
 
         {/* Desktop Menu */}
         <ul className="hidden md:flex gap-8 text-lg font-medium">
-          {["Home", "Destinations", "Itineraries", "About", "Contact"].map(
+          {["Destinations", "Itineraries", "About", "Contact"].map(
             (item, index) => (
               <motion.li
                 key={index}
@@ -61,7 +61,7 @@ export default function Navbar() {
           />
           {isDropdownOpen && (
             <motion.div
-              className="absolute right-0 mt-4 bg-white text-gray-900 rounded-lg shadow-xl overflow-hidden w-48"
+              className="absolute right-0 mt-4 bg-white text-gray-900 rounded-lg shadow-xl overflow-visible w-48 z-[150]"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3 }}
